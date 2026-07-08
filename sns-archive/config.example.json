@@ -1,0 +1,49 @@
+{
+  "timezone": "Asia/Tokyo",
+  "port": 5089,
+  "download_like_media": true,
+  "keep_extracted": false,
+
+  "_メモ1": "各サービスとも [ ] の中の { } ブロックを増やせば複数アカウントを登録できます。使わないサービスは [] に、使わない例示ブロックは削除してください。",
+  "_メモ2": "APIでの取得（token / app_password）が推奨です。エクスポートファイルから取り込むときは token の代わりに archive を書きます。misskey: {archive, host, user} / bluesky: {archive} / mastodon: {archive}",
+  "_メモ3": "misskey と mastodon は token と archive を両方書くと、初回だけアーカイブから一括取り込みし、以降の差分をAPIで取得します（初回のAPI待ち時間を大幅短縮）。",
+  "_メモ4": "keep_extracted を true にすると、zipから展開した一時データを取り込み後も残します（既定は取り込み後に自動削除）。",
+
+  "twitter": [
+    {
+      "archive_dir": "C:/Users/あなた/Downloads/twitter-2026-01-01-xxxxxxxx.zip",
+      "account_label": ""
+    }
+  ],
+
+  "misskey": [
+    {
+      "host": "misskey.example1.jp",
+      "token": "ここにアクセストークンを貼る",
+      "label": ""
+    },
+    {
+      "host": "misskey.example2.jp",
+      "token": "ここにアクセストークンを貼る",
+      "archive": "（任意）初回用のnotesエクスポート.zipか.jsonのパス",
+      "label": ""
+    }
+  ],
+
+  "bluesky": [
+    {
+      "handle": "yourname.bsky.social",
+      "app_password": "xxxx-xxxx-xxxx-xxxx",
+      "pds": "https://bsky.social"
+    }
+  ],
+
+  "mastodon": [
+    {
+      "host": "mstdn.example.jp",
+      "token": "ここにアクセストークンを貼る",
+      "archive": "（任意）初回用のエクスポートarchive-xxxx.zipのパス",
+      "label": ""
+    }
+  ]
+}

@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>統合SNSアーカイブ</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128218;</text></svg>">
+<script>
+/* テーマ初期化はチラつき防止のため最優先で実行 */
+(function(){
+  try{
+    var t = localStorage.getItem("theme");
+    if(t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+  }catch(e){}
+})();
+</script>
+<style>
+:root{
+  --bg:#f4f5f8; --bg2:#eceef3; --panel:#ffffff; --panel2:#f0f2f6;
+  --border:#e3e6ed; --border2:#c8cedb;
+  --text:#1c2432; --muted:#5b6577; --faint:#6b7485;
+  --link:#2563c4; --hashtag:#6d4fc4;
+  --shadow:0 1px 2px rgba(18,26,43,.05), 0 4px 14px rgba(18,26,43,.05);
+  --shadow-lg:0 8px 32px rgba(18,26,43,.14);
+  --scrim:rgba(24,30,42,.45);
+  --tw:#1d9bf0; --mk:#86ab13; --bs:#2f7fe0; --md:#6364ff;
+  --font-display:"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho","游明朝",serif;
+  --font-body:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+  --font-mono:Consolas,"SF Mono",ui-monospace,"Courier New",monospace;
+  color-scheme:light;
+}
+:root[data-theme="dark"]{
+  --bg:#14181f; --bg2:#10141a; --panel:#1b212b; --panel2:#222a37;
+  --border:#2a3240; --border2:#3b4660;
+  --text:#e9e7e0; --muted:#98a0af; --faint:#868e9e;
+  --link:#9db8e8; --hashtag:#b8a9e8;
+  --shadow:none; --shadow-lg:0 12px 40px rgba(0,0,0,.55);
+  --scrim:rgba(5,7,10,.72);
+  --tw:#1d9bf0; --mk:#9dc918; --bs:#3d94ff; --md:#8583ff;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#14181f; --bg2:#10141a; --panel:#1b212b; --panel2:#222a37;
+    --border:#2a3240; --border2:#3b4660;
+    --text:#e9e7e0; --muted:#98a0af; --faint:#868e9e;
+    --link:#9db8e8; --hashtag:#b8a9e8;
+    --shadow:none; --shadow-lg:0 12px 40px rgba(0,0,0,.55);
+    --scrim:rgba(5,7,10,.72);
+    --tw:#1d9bf0; --mk:#9dc918; --bs:#3d94ff; --md:#8583ff;
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);
+  font-size:15px;line-height:1.75}
+a{color:inherit}
+button,select,input{font-family:inherit;font-size:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--link);outline-offset:2px;border-radius:4px}
+@media (prefers-contrast:more){
+  :root{--border:#9aa1b0; --border2:#7d8494; --faint:#4c5566}
+  html[data-theme="dark"]{--border:#5a6478; --border2:#78829a; --faint:#aeb6c6}
+}
+
+/* ---------- レイアウト ---------- */
+.layout{display:grid;grid-template-columns:302px minmax(0,1fr);min-height:100vh}
+.sidebar{background:var(--bg2);border-right:1px solid var(--border);
+  padding:22px 18px 40px;position:sticky;top:0;height:100vh;overflow-y:auto;
+  scrollbar-width:thin}
+.main{max-width:768px;width:100%;margin:0 auto;padding:0 20px 120px}
+
+/* ---------- サイドバー ---------- */
+.side-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.wordmark{font-family:var(--font-display);font-weight:600;font-size:25px;
+  letter-spacing:.06em;margin:0}
+.wordmark small{display:block;font-family:var(--font-mono);font-size:10px;
+  letter-spacing:.28em;color:var(--faint);margin-top:4px;font-weight:400}
+.theme-btn{flex:none;width:36px;height:36px;border-radius:50%;cursor:pointer;
+  background:var(--panel);border:1px solid var(--border);font-size:16px;
+  display:grid;place-items:center;box-shadow:var(--shadow)}
+.theme-btn:hover{border-color:var(--border2)}
+.side-total{font-family:var(--font-mono);color:var(--muted);font-size:12px;
+  margin:12px 0 22px;font-variant-numeric:tabular-nums}
+.side-sec{margin:0 0 24px}
+.side-sec h2{font-size:11px;letter-spacing:.18em;color:var(--faint);
+  font-weight:600;margin:0 0 8px;text-transform:uppercase}
+.side-sec.disabled{opacity:.4;pointer-events:none}
+.chk{display:flex;align-items:center;gap:8px;padding:5px 6px;cursor:pointer;
+  border-radius:8px;font-size:13.5px}
+.chk:hover{background:var(--panel)}
+.chk input{accent-color:var(--link);width:14px;height:14px;flex:none;cursor:pointer}
+.chk .dot{width:8px;height:8px;border-radius:50%;flex:none}
+.chk .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chk .n{font-family:var(--font-mono);font-size:11px;color:var(--faint);
+  font-variant-numeric:tabular-nums}
+.side-btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{background:var(--panel);border:1px solid var(--border);border-radius:10px;
+  padding:6px 13px;cursor:pointer;font-size:13px;color:var(--text);
+  box-shadow:var(--shadow)}
+.btn:hover{border-color:var(--border2);background:var(--panel2)}
+select.btn{padding:6px 8px}
+
+/* 月別ナビ（積み上げバー） */
+.cal details{margin:0 0 2px}
+.cal summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;
+  gap:8px;padding:5px 6px;border-radius:8px;font-size:13.5px}
+.cal summary::-webkit-details-marker{display:none}
+.cal summary:hover{background:var(--panel)}
+.cal summary .yr{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.cal summary .n{margin-left:auto;font-family:var(--font-mono);font-size:11px;
+  color:var(--faint);font-variant-numeric:tabular-nums}
+.cal summary .tri{color:var(--faint);font-size:10px;transition:transform .15s}
+.cal details[open] summary .tri{transform:rotate(90deg)}
+.mrow{display:grid;grid-template-columns:34px 1fr 44px;align-items:center;gap:8px;
+  padding:3px 6px 3px 18px;border-radius:8px;cursor:pointer;border:0;width:100%;
+  background:none;text-align:left}
+.mrow:hover{background:var(--panel)}
+.mrow.active{background:var(--panel);outline:1.5px solid var(--link)}
+.mrow .m{font-family:var(--font-mono);font-size:12px;color:var(--muted);
+  font-variant-numeric:tabular-nums}
+.mrow .n{font-family:var(--font-mono);font-size:11px;color:var(--faint);
+  text-align:right;font-variant-numeric:tabular-nums}
+.bar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--panel2)}
+.bar i{display:block;height:100%}
+.bar .tw{background:var(--tw)}.bar .mk{background:var(--mk)}
+.bar .bs{background:var(--bs)}.bar .md{background:var(--md)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 12px;margin:10px 4px 0;font-size:11px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend .dot{width:8px;height:8px;border-radius:50%}
+
+/* ---------- タブ＋検索バー ---------- */
+.searchwrap{position:sticky;top:0;z-index:30;
+  background:linear-gradient(var(--bg) 86%,transparent);padding:16px 0 14px}
+.tabs{display:inline-flex;background:var(--panel2);border:1px solid var(--border);
+  border-radius:12px;padding:3px;gap:2px;margin-bottom:12px}
+.tab{border:0;background:none;border-radius:9px;padding:7px 18px;cursor:pointer;
+  font-size:14px;color:var(--muted);display:inline-flex;align-items:center;gap:7px}
+.tab .n{font-family:var(--font-mono);font-size:11px;color:var(--faint);
+  font-variant-numeric:tabular-nums}
+.tab:hover{color:var(--text)}
+.tab.active{background:var(--panel);color:var(--text);box-shadow:var(--shadow);
+  font-weight:600}
+.tab.active .n{color:var(--muted)}
+.searchbar{display:flex;gap:8px}
+.searchbar input{flex:1;background:var(--panel);border:1px solid var(--border);
+  border-radius:12px;padding:10px 16px;font-size:15px;color:var(--text);
+  box-shadow:var(--shadow)}
+.searchbar input::placeholder{color:var(--faint)}
+.searchbar input:focus{border-color:var(--link);outline:none}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel);
+  border:1px solid var(--border2);border-radius:999px;padding:3px 6px 3px 12px;
+  font-size:12.5px;box-shadow:var(--shadow)}
+.chip button{background:none;border:0;cursor:pointer;color:var(--muted);
+  font-size:14px;line-height:1;padding:2px 5px;border-radius:50%}
+.chip button:hover{color:var(--text);background:var(--panel2)}
+.meta-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;
+  color:var(--muted);font-size:13px;margin:6px 2px 18px;
+  font-variant-numeric:tabular-nums}
+.meta-line .svc-n{font-family:var(--font-mono);font-size:12px}
+.svc-n.tw{color:var(--tw)}.svc-n.mk{color:var(--mk)}
+.svc-n.bs{color:var(--bs)}.svc-n.md{color:var(--md)}
+
+/* ---------- 投稿カード ---------- */
+.post{background:var(--panel);border:1px solid var(--border);border-left-width:3px;
+  border-radius:14px;padding:14px 18px 12px;margin:0 0 14px;
+  overflow-wrap:anywhere;box-shadow:var(--shadow)}
+.post.s-twitter{border-left-color:var(--tw)}
+.post.s-misskey{border-left-color:var(--mk)}
+.post.s-bluesky{border-left-color:var(--bs)}
+.post.s-mastodon{border-left-color:var(--md)}
+@media (prefers-reduced-motion:no-preference){
+  .post{opacity:0;transform:translateY(6px);transition:opacity .3s,transform .3s}
+  .post.in{opacity:1;transform:none}
+}
+.post header{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;
+  font-size:12.5px;color:var(--muted);margin-bottom:6px}
+.pill{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;
+  padding:1px 8px;border-radius:999px;border:1px solid}
+.pill.tw{color:var(--tw);border-color:color-mix(in srgb,var(--tw) 45%,transparent)}
+.pill.mk{color:var(--mk);border-color:color-mix(in srgb,var(--mk) 45%,transparent)}
+.pill.bs{color:var(--bs);border-color:color-mix(in srgb,var(--bs) 45%,transparent)}
+.pill.md{color:var(--md);border-color:color-mix(in srgb,var(--md) 45%,transparent)}
+.post header .acct{overflow:hidden;text-overflow:ellipsis;max-width:40%;white-space:nowrap}
+.post header .date{margin-left:auto;font-family:var(--font-mono);
+  font-variant-numeric:tabular-nums;color:var(--muted);text-decoration:none}
+.post header .date:hover{color:var(--text);text-decoration:underline}
+.tag-reply{font-size:11px;color:var(--faint)}
+.badge{font-size:12.5px;color:var(--muted);margin:0 0 6px}
+.badge b{color:var(--text);font-weight:600}
+.post .text{white-space:pre-wrap;font-size:15px}
+.post .text a{color:var(--link);text-decoration:none}
+.post .text a:hover{text-decoration:underline}
+.post .text a.hashtag{color:var(--hashtag)}
+.media{display:grid;gap:6px;margin-top:10px}
+.media[data-n="1"]{grid-template-columns:1fr}
+.media:not([data-n="1"]){grid-template-columns:1fr 1fr}
+.media img{width:100%;border-radius:10px;background:var(--panel2);cursor:zoom-in;display:block}
+.media[data-n="1"] img{max-height:480px;object-fit:contain}
+.media:not([data-n="1"]) img{aspect-ratio:16/11;object-fit:cover}
+.media video{width:100%;max-height:480px;border-radius:10px;background:#000;display:block}
+.media audio{width:100%}
+.media .vlink{position:relative;display:block}
+.media .vlink::after{content:"\25B6";position:absolute;inset:0;display:grid;
+  place-items:center;font-size:34px;color:#fff;text-shadow:0 1px 8px rgba(0,0,0,.8)}
+.media a.filelink{font-size:13px;color:var(--link)}
+.post footer{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;
+  margin-top:8px;font-size:11.5px;color:var(--faint);
+  font-variant-numeric:tabular-nums}
+.post footer a{color:var(--faint);text-decoration:none}
+.post footer a:hover{color:var(--muted);text-decoration:underline}
+
+/* ---------- ブックマーク ---------- */
+.bm-row{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:8px;
+  cursor:pointer;border:0;width:100%;background:none;text-align:left;font-size:13.5px;
+  color:var(--text)}
+.bm-row:hover{background:var(--panel)}
+.bm-row.active{background:var(--panel);outline:1.5px solid var(--link)}
+.bm-row .ic{flex:none;font-size:12px}
+.bm-row .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bm-row .n{font-family:var(--font-mono);font-size:11px;color:var(--faint);
+  font-variant-numeric:tabular-nums}
+.bm-hint{color:var(--faint);font-size:12px;padding:2px 6px}
+
+.bm-tags{display:flex;flex-wrap:wrap;gap:5px;margin:2px 0 6px}
+.bm-tag{display:inline-flex;align-items:center;gap:4px;background:var(--panel2);
+  border:1px solid var(--border);border-radius:999px;padding:1px 10px;font-size:11.5px;
+  color:var(--muted);cursor:pointer}
+.bm-tag:hover{color:var(--text);border-color:var(--border2)}
+.bm-btn{background:none;border:0;cursor:pointer;color:var(--faint);font-size:13px;
+  padding:2px 6px;border-radius:6px;line-height:1}
+.bm-btn:hover{color:var(--text);background:var(--panel2)}
+.bm-btn.on{color:var(--link)}
+
+.bm-pop{background:var(--panel);border:1px solid var(--border2);border-radius:12px;
+  box-shadow:var(--shadow-lg);padding:12px 14px;margin:8px 0 4px;max-width:340px}
+.bm-pop h4{margin:0 0 8px;font-size:12.5px;color:var(--muted);font-weight:600;
+  display:flex;justify-content:space-between;align-items:center}
+.bm-pop h4 button{background:none;border:0;color:var(--muted);cursor:pointer;
+  font-size:15px;padding:0 4px;border-radius:4px}
+.bm-pop h4 button:hover{color:var(--text)}
+.bm-pop .list{max-height:180px;overflow-y:auto;margin-bottom:10px}
+.bm-pop label.chk{font-size:13px}
+.bm-pop .newrow{display:flex;gap:6px}
+.bm-pop .newrow input{flex:1;background:var(--panel2);border:1px solid var(--border);
+  border-radius:8px;padding:5px 10px;font-size:13px;color:var(--text);min-width:0}
+.bm-pop .newrow input:focus{border-color:var(--link);outline:none}
+.bm-pop .newrow button{white-space:nowrap;padding:5px 12px}
+.bm-pop .none{color:var(--faint);font-size:12.5px;margin:0 0 8px}
+
+/* ---------- その他 ---------- */
+.sentinel{padding:30px 0;text-align:center;color:var(--faint);font-size:13px}
+.empty{border:1px dashed var(--border2);border-radius:14px;padding:28px;
+  color:var(--muted);font-size:14px;margin-top:20px;background:var(--panel)}
+.empty code{font-family:var(--font-mono);background:var(--panel2);
+  padding:1px 6px;border-radius:4px}
+
+.overlay{position:fixed;inset:0;background:var(--scrim);z-index:100;
+  display:none;place-items:center;padding:24px;cursor:zoom-out;
+  backdrop-filter:blur(3px)}
+.overlay.show{display:grid}
+.overlay img{max-width:96vw;max-height:92vh;border-radius:10px;box-shadow:var(--shadow-lg)}
+
+.modal{position:fixed;inset:0;background:var(--scrim);z-index:110;
+  display:none;place-items:center;padding:20px;backdrop-filter:blur(3px)}
+.modal.show{display:grid}
+.modal-box{background:var(--panel);border:1px solid var(--border);border-radius:16px;
+  max-width:660px;width:100%;max-height:86vh;overflow-y:auto;padding:24px 28px;
+  box-shadow:var(--shadow-lg)}
+.modal-box h3{font-family:var(--font-display);font-weight:600;margin:0 0 4px;
+  font-size:19px;letter-spacing:.04em}
+.modal-box .sub{color:var(--muted);font-size:13px;margin:0 0 16px}
+.optable{width:100%;border-collapse:collapse;font-size:13px}
+.optable td{padding:6px 10px 6px 0;border-bottom:1px solid var(--border);
+  vertical-align:top}
+.optable td:first-child{font-family:var(--font-mono);white-space:nowrap;
+  color:var(--link)}
+.modal-close{float:right;background:none;border:0;color:var(--muted);
+  font-size:20px;cursor:pointer;padding:2px 8px;border-radius:8px}
+.modal-close:hover{color:var(--text);background:var(--panel2)}
+
+.menu-btn{display:none;position:fixed;left:14px;bottom:14px;z-index:60;
+  width:50px;height:50px;border-radius:50%;background:var(--panel);
+  border:1px solid var(--border2);font-size:20px;cursor:pointer;
+  box-shadow:var(--shadow-lg)}
+.top-btn{position:fixed;right:16px;bottom:16px;z-index:60;
+  width:44px;height:44px;border-radius:50%;background:var(--panel);
+  border:1px solid var(--border2);font-size:17px;cursor:pointer;color:var(--muted);
+  box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:opacity .2s}
+.top-btn.show{opacity:1;pointer-events:auto}
+.top-btn:hover{color:var(--text)}
+@media (max-width:920px){
+  .layout{grid-template-columns:1fr}
+  .sidebar{position:fixed;left:0;top:0;bottom:0;width:min(312px,86vw);
+    transform:translateX(-102%);transition:transform .22s;z-index:50;height:100%;
+    box-shadow:var(--shadow-lg)}
+  .sidebar.open{transform:none}
+  .menu-btn{display:block}
+  .main{padding:0 12px 120px}
+  .tab{padding:7px 13px}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" id="sidebar" aria-label="フィルタと設定">
+    <div class="side-head">
+      <h1 class="wordmark">統合SNSアーカイブ<small>UNIFIED TIMELINE</small></h1>
+      <button class="theme-btn" id="theme-btn" title="ライト / ダーク切り替え" aria-label="テーマ切り替え">&#9789;</button>
+    </div>
+    <div class="side-total" id="side-total">読み込み中…</div>
+
+    <section class="side-sec">
+      <h2>アカウント</h2>
+      <div id="acct-list"></div>
+    </section>
+
+    <section class="side-sec" id="type-sec">
+      <h2>種類</h2>
+      <div id="type-list">
+        <label class="chk"><input type="checkbox" data-type="post" checked>
+          <span class="lbl">投稿</span><span class="n" id="n-post"></span></label>
+        <label class="chk"><input type="checkbox" data-type="repost" checked>
+          <span class="lbl">RT・リノート・ブースト</span><span class="n" id="n-repost"></span></label>
+        <label class="chk"><input type="checkbox" id="chk-reply" checked>
+          <span class="lbl">返信を含む</span></label>
+      </div>
+    </section>
+
+    <section class="side-sec">
+      <h2>ブックマーク</h2>
+      <div id="bm-list"></div>
+    </section>
+
+    <section class="side-sec">
+      <h2>表示</h2>
+      <div class="side-btns">
+        <select class="btn" id="order-sel" aria-label="並び順">
+          <option value="desc">新しい順</option>
+          <option value="asc">古い順</option>
+        </select>
+        <button class="btn" id="btn-random" title="ランダムに50件表示">&#127922; ランダム</button>
+        <button class="btn" id="btn-today" title="過去の同じ日付の投稿を表示">この日の過去</button>
+      </div>
+    </section>
+
+    <section class="side-sec">
+      <h2>月別</h2>
+      <div class="cal" id="cal"></div>
+      <div class="legend" id="legend"></div>
+    </section>
+  </aside>
+
+  <div class="main" role="main">
+    <div class="searchwrap">
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="posts" role="tab" aria-selected="true">
+          &#128221; 投稿・RT <span class="n" id="tab-n-posts"></span></button>
+        <button class="tab" data-tab="likes" role="tab" aria-selected="false">
+          &#9825; いいね・お気に入り <span class="n" id="tab-n-likes"></span></button>
+      </div>
+      <div class="searchbar">
+        <input id="q" type="search" aria-label="投稿を検索"
+               placeholder="検索　例: 猫 has:image since:2020  （/ でフォーカス）"
+               autocomplete="off" spellcheck="false">
+        <button class="btn" id="btn-search">検索</button>
+        <button class="btn" id="btn-help" title="検索コマンド一覧" aria-label="検索コマンド一覧のヘルプ">?</button>
+      </div>
+      <div class="chips" id="chips"></div>
+    </div>
+
+    <div class="meta-line" id="meta-line" aria-live="polite"></div>
+    <div id="results"></div>
+    <div class="sentinel" id="sentinel" aria-live="polite"></div>
+  </div>
+</div>
+
+<button class="menu-btn" id="menu-btn" aria-label="メニュー">&#9776;</button>
+<button class="top-btn" id="top-btn" aria-label="いちばん上へ" title="いちばん上へ">&#8593;</button>
+
+<div class="overlay" id="overlay" role="dialog" aria-label="画像の拡大表示（クリックまたはEscで閉じる）"><img id="overlay-img" alt="拡大画像"></div>
+
+<div class="modal" id="help-modal" role="dialog" aria-modal="true" aria-label="検索コマンド一覧">
+  <div class="modal-box">
+    <button class="modal-close" id="help-close" aria-label="閉じる">&#215;</button>
+    <h3>検索コマンド</h3>
+    <p class="sub">スペース区切りはAND。タブ・サイドバーのフィルタとも同時に絞り込まれます。</p>
+    <table class="optable">
+      <tr><td>ねこ 写真</td><td>両方の語を含む投稿（AND）。画像のalt説明文も検索対象</td></tr>
+      <tr><td>ねこ OR いぬ</td><td>どちらかを含む（<code>ねこ OR いぬ かわいい</code> = (ねこ∨いぬ)∧かわいい）</td></tr>
+      <tr><td>"おはようございます"</td><td>フレーズをそのまま検索</td></tr>
+      <tr><td>-ラーメン</td><td>その語を含む投稿を除外</td></tr>
+      <tr><td>service:twitter</td><td>サービスで絞る（twitter / misskey / bluesky / mastodon、<code>-service:</code>で除外可）</td></tr>
+      <tr><td>account:misskey.io</td><td>アカウント名（部分一致）で絞る</td></tr>
+      <tr><td>from:username</td><td>RT・いいねの元投稿者で絞る</td></tr>
+      <tr><td>since:2020-01-01</td><td>この日以降（<code>since:2020</code> <code>since:2020-04</code> も可）</td></tr>
+      <tr><td>until:2021-06-30</td><td>この日まで</td></tr>
+      <tr><td>date:2019-05-01</td><td>その日だけ。<code>date:05-01</code> なら全年の5月1日</td></tr>
+      <tr><td>has:image</td><td>画像つき（<code>has:media</code> / <code>has:video</code> / <code>has:link</code>）</td></tr>
+      <tr><td>type:like</td><td>種類で絞る（post / repost / like / reply）。<code>is:reply</code> <code>-is:reply</code> も可</td></tr>
+      <tr><td>label:大事な話</td><td>付けたブックマーク（ラベル）で絞る。<code>label:*</code> で何かラベルの付いたもの全部、<code>-label:</code> で除外</td></tr>
+      <tr><td>has:bookmark</td><td>何かしらブックマークした投稿（<code>label:*</code> と同じ）</td></tr>
+      <tr><td>sort:asc</td><td>古い順（<code>sort:random</code> でランダム）</td></tr>
+    </table>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = (s, el=document) => el.querySelector(s);
+const SVC = {twitter:{cls:"tw", label:"Twitter"},
+             misskey:{cls:"mk", label:"Misskey"},
+             bluesky:{cls:"bs", label:"Bluesky"},
+             mastodon:{cls:"md", label:"Mastodon"}};
+const state = {
+  q:"", tab:"posts",
+  accounts:new Set(), allAccounts:[], types:new Set(["post","repost"]),
+  replies:true, month:null, order:"desc", label:null, allLabels:[],
+  page:1, total:0, loading:false, done:false, seq:0
+};
+
+/* ---------------- テーマ ---------------- */
+function effectiveTheme(){
+  const t = document.documentElement.dataset.theme;
+  if(t === "light" || t === "dark") return t;
+  return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+function updateThemeBtn(){
+  $("#theme-btn").textContent = effectiveTheme() === "dark" ? "\u263E" : "\u2600";
+}
+$("#theme-btn").addEventListener("click", () => {
+  const next = effectiveTheme() === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try{ localStorage.setItem("theme", next); }catch(e){}
+  updateThemeBtn();
+});
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", updateThemeBtn);
+updateThemeBtn();
+
+/* ---------------- ユーティリティ ---------------- */
+const esc = s => String(s ?? "").replace(/[&<>"']/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function linkify(text){
+  const urlRe = /https?:\/\/[^\s<>"'\u3000-\u303f\uff00-\uff0f]+/g;
+  let out = "", last = 0, m;
+  while((m = urlRe.exec(text))){
+    out += hashtagize(esc(text.slice(last, m.index)));
+    const u = m[0];
+    out += `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a>`;
+    last = m.index + u.length;
+  }
+  out += hashtagize(esc(text.slice(last)));
+  return out.replace(/\n/g, "<br>");
+}
+function hashtagize(escaped){
+  return escaped.replace(/(^|[\s\u3000(（>])#([^\s\u3000#<]{1,50})/g,
+    (all, pre, tag) => `${pre}<a href="#" class="hashtag" data-tag="${tag}">#${tag}</a>`);
+}
+
+function fmtDate(p){
+  if(!p.created_local) return "日付不明";
+  const d = new Date(p.created_local);
+  const w = "日月火水木金土"[d.getDay()] || "";
+  const s = p.created_local;
+  let out = `${s.slice(0,4)}/${s.slice(5,7)}/${s.slice(8,10)}(${w}) ${s.slice(11,16)}`;
+  if(p.extra && p.extra.date_estimated) out += " ごろ";
+  return out;
+}
+
+function mediaHTML(p){
+  const ms = p.media || [];
+  if(!ms.length) return "";
+  let inner = "";
+  for(const m of ms){
+    const src = m.url || m.remote_url;
+    const alt = esc(m.alt || "");
+    if(!src && m.kind !== "remote_video"){ continue; }
+    if(m.kind === "image"){
+      inner += `<img loading="lazy" src="${esc(src)}" alt="${alt}" title="${alt}" data-full="${esc(src)}">`;
+    }else if(m.kind === "gifv"){
+      inner += `<video autoplay muted loop playsinline src="${esc(src)}" title="GIF"></video>`;
+    }else if(m.kind === "video"){
+      inner += `<video controls preload="metadata" src="${esc(src)}"></video>`;
+    }else if(m.kind === "remote_video"){
+      const thumb = m.url;
+      if(thumb){
+        inner += `<a class="vlink" href="${esc(p.url || m.remote_url)}" target="_blank" rel="noopener" title="動画は元の投稿で再生できます"><img loading="lazy" src="${esc(thumb)}" alt="${alt}"></a>`;
+      }else{
+        inner += `<a class="filelink" href="${esc(p.url || m.remote_url)}" target="_blank" rel="noopener">&#9654; 動画（元の投稿で再生）</a>`;
+      }
+    }else if(m.kind === "audio"){
+      inner += `<audio controls preload="none" src="${esc(src)}"></audio>`;
+    }else{
+      inner += `<a class="filelink" href="${esc(src)}" target="_blank" rel="noopener">&#128206; 添付ファイル</a>`;
+    }
+  }
+  if(!inner) return "";
+  const n = Math.min(ms.length, 4);
+  return `<div class="media" data-n="${n}">${inner}</div>`;
+}
+
+function bmTagsHTML(labels){
+  return (labels || []).map(l =>
+    `<button class="bm-tag" data-bmfilter="${esc(l)}" title="このラベルで絞り込む">&#128278; ${esc(l)}</button>`).join("");
+}
+
+function postCard(p){
+  const svc = SVC[p.service] || {cls:"", label:p.service};
+  const el = document.createElement("article");
+  el.className = `post s-${p.service}`;
+  const author = p.author_handle
+    ? `<b>${esc(p.author_handle)}</b>${p.author_name ? " (" + esc(p.author_name) + ")" : ""}`
+    : "<b>—</b>";
+  let badge = "";
+  if(p.type === "repost"){
+    badge = `<div class="badge" ${p.extra.rt_truncated ? 'title="RT本文はTwitterアーカイブの仕様で短縮されている場合があります"' : ""}>&#128257; リポスト — ${author}</div>`;
+  }else if(p.type === "like"){
+    const r = p.extra && p.extra.reaction ? esc(p.extra.reaction) : "&#9825;";
+    badge = `<div class="badge">${r} いいね — ${author}</div>`;
+  }
+  const foot = [];
+  if(p.extra){
+    if(p.extra.visibility === "followers") foot.push("&#128274; フォロワー限定");
+    if(p.extra.visibility === "specified") foot.push("&#9993; ダイレクト");
+    if(p.extra.visibility === "home") foot.push("&#127968; ホーム");
+    if(p.extra.fav_count) foot.push(`&#9825;${p.extra.fav_count}`);
+    if(p.extra.rt_count) foot.push(`&#8635;${p.extra.rt_count}`);
+    if(p.extra.quote_of) foot.push(`<a href="${esc(p.extra.quote_of)}" target="_blank" rel="noopener">引用元 &#8599;</a>`);
+    if(p.extra.renote_of) foot.push(`<a href="${esc(p.extra.renote_of)}" target="_blank" rel="noopener">リノート元 &#8599;</a>`);
+  }
+  if(p.url) foot.push(`<a href="${esc(p.url)}" target="_blank" rel="noopener">元の投稿 &#8599;</a>`);
+  const hasBm = (p.labels || []).length > 0;
+  foot.push(`<button class="bm-btn${hasBm ? " on" : ""}" data-bm="${p.id}" title="ブックマーク（ラベルを付ける）" aria-label="ブックマーク（ラベルを付ける）">&#128278;${hasBm ? "" : " ラベル"}</button>`);
+  el.innerHTML = `
+    <header>
+      <span class="pill ${svc.cls}">${svc.label}</span>
+      <span class="acct">${esc(p.account)}</span>
+      ${p.is_reply ? '<span class="tag-reply">&#8617; 返信</span>' : ""}
+      <a class="date" href="${esc(p.url || "#")}" target="_blank" rel="noopener">${fmtDate(p)}</a>
+    </header>
+    ${badge}
+    <div class="bm-tags" data-bmtags="${p.id}">${bmTagsHTML(p.labels)}</div>
+    <div class="text">${linkify(p.text || "")}</div>
+    ${mediaHTML(p)}
+    ${foot.length ? `<footer>${foot.join(" ")}</footer>` : ""}`;
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("in")));
+  return el;
+}
+
+/* ---------------- API ---------------- */
+function currentTypes(){
+  if(state.tab === "likes") return ["like"];
+  return [...state.types];  // post / repost のうちチェック済み
+}
+function buildParams(page){
+  const p = new URLSearchParams();
+  p.set("q", state.q);
+  p.set("page", page);
+  if(state.accounts.size && state.accounts.size < state.allAccounts.length)
+    p.set("accounts", [...state.accounts].join("\n"));
+  p.set("types", currentTypes().join(","));
+  p.set("replies", (state.tab === "likes" || state.replies) ? "1" : "0");
+  if(state.month) p.set("month", state.month);
+  if(state.label) p.set("label", state.label);
+  p.set("order", state.order);
+  return p;
+}
+
+async function doSearch(reset){
+  if(reset){
+    state.page = 1; state.done = false;
+    $("#results").innerHTML = "";
+    closeBmPop();
+    if(window.scrollY > 300)                    // 下の方を見ていたら先頭に戻す
+      window.scrollTo({top:0, behavior:"instant" in document.body.style ? "instant" : "auto"});
+  }else if(state.loading || state.done){
+    return;
+  }
+  if(state.tab === "posts" && state.types.size === 0){
+    $("#results").innerHTML = `<div class="empty">「種類」のチェックがすべて外れています。左のサイドバーで表示したい種類を選んでください。</div>`;
+    $("#meta-line").innerHTML = ""; $("#sentinel").textContent = "";
+    state.done = true; return;
+  }
+  const seq = ++state.seq;      // 進行中の古い読み込みはここで無効化される
+  state.loading = true;
+  $("#sentinel").textContent = "読み込み中…";
+  try{
+    const res = await fetch("/api/posts?" + buildParams(state.page));
+    const data = await res.json();
+    if(seq !== state.seq) return;
+    if(data.total >= 0) state.total = data.total;   // 2ページ目以降は前回値を使う
+    const frag = document.createDocumentFragment();
+    for(const p of data.posts) frag.appendChild(postCard(p));
+    $("#results").appendChild(frag);
+    if(state.page === 1){
+      renderMeta(data);
+      if(data.histogram) renderCalendar(data.histogram);
+      if(data.total === 0) renderEmpty();
+    }
+    state.page++;
+    const shown = $("#results").children.length;
+    if(shown >= state.total || data.posts.length === 0 || state.order === "random")
+      state.done = true;
+    $("#sentinel").textContent = state.done
+      ? (state.total ? "— 以上 —" : "") : "";
+  }catch(e){
+    if(seq === state.seq) $("#sentinel").textContent = "読み込みエラー: " + e;
+  }finally{
+    if(seq === state.seq){
+      state.loading = false;
+      maybeLoadMore();
+    }
+  }
+}
+
+function renderMeta(data){
+  const parts = [`<b>${data.total.toLocaleString()}</b> 件`];
+  // アカウント別の内訳（サービスの色付き）。多アカウント時も折り返して表示される
+  for(const a of (data.account_counts || [])){
+    const cls = (SVC[a.service] || {}).cls || "";
+    parts.push(`<span class="svc-n ${cls}" title="${esc(a.service)}">${esc(a.account)} ${a.c.toLocaleString()}</span>`);
+  }
+  if(state.order === "random")
+    parts.push(`<button class="btn" id="btn-reroll" style="padding:2px 10px;font-size:12px">&#127922; もう一度</button>`);
+  $("#meta-line").innerHTML = parts.join(" ");
+  const rr = $("#btn-reroll");
+  if(rr) rr.onclick = () => doSearch(true);
+}
+
+function renderEmpty(){
+  const anyData = state.allAccounts.length > 0;
+  $("#results").innerHTML = anyData
+    ? `<div class="empty">条件に一致する${state.tab === "likes" ? "いいね" : "投稿"}はありませんでした。検索語やフィルタ、タブの切り替えを確認してみてください。</div>`
+    : `<div class="empty">まだデータがありません。<br><br>
+       1. <code>config.json</code> を設定<br>
+       2. <code>sync_all.bat</code>（または各 sync_*.bat）を実行して取り込み<br>
+       3. このページを再読み込み<br><br>詳しくは README.md をどうぞ。</div>`;
+}
+
+/* ---------------- サイドバー ---------------- */
+async function loadMeta(){
+  const res = await fetch("/api/meta");
+  const meta = await res.json();
+  state.allAccounts = meta.accounts.map(a => a.service + "|" + a.account);
+  state.accounts = new Set(state.allAccounts);
+  const list = $("#acct-list");
+  list.innerHTML = "";
+  for(const a of meta.accounts){
+    const key = a.service + "|" + a.account;
+    const def = SVC[a.service] || {cls:"", label:a.service};
+    const lab = document.createElement("label");
+    lab.className = "chk";
+    lab.innerHTML = `<input type="checkbox" checked>
+      <span class="dot" style="background:var(--${def.cls || "border2"})"></span>
+      <span class="lbl" title="${esc(a.account)}">${esc(a.account)}</span>
+      <span class="n">${a.c.toLocaleString()}</span>`;
+    lab.querySelector("input").addEventListener("change", ev => {
+      ev.target.checked ? state.accounts.add(key) : state.accounts.delete(key);
+      doSearch(true);
+    });
+    list.appendChild(lab);
+  }
+  $("#n-post").textContent = meta.totals.post.toLocaleString();
+  $("#n-repost").textContent = meta.totals.repost.toLocaleString();
+  $("#tab-n-posts").textContent =
+    (meta.totals.post + meta.totals.repost).toLocaleString();
+  $("#tab-n-likes").textContent = meta.totals.like.toLocaleString();
+  const r = meta.range || {};
+  $("#side-total").textContent = meta.totals.all
+    ? `全 ${meta.totals.all.toLocaleString()} 件 · ${ (r.min||"").slice(0,10) } 〜 ${ (r.max||"").slice(0,10) }`
+    : "データ未取り込み";
+  renderLegend(meta.accounts);
+}
+
+function renderLegend(accounts){
+  const seen = [...new Set(accounts.map(a => a.service))];
+  const el = $("#legend");
+  el.innerHTML = "";
+  const order = Object.keys(SVC).filter(s => seen.includes(s))
+    .concat(seen.filter(s => !SVC[s]));
+  for(const s of (order.length ? order : Object.keys(SVC))){
+    const def = SVC[s] || {cls:"", label:s};
+    el.insertAdjacentHTML("beforeend",
+      `<span><i class="dot" style="background:var(--${def.cls || "border2"})"></i>${esc(def.label)}</span>`);
+  }
+}
+
+function renderCalendar(hist){
+  // hist: [{ym, service, c}]
+  const byYm = new Map();
+  for(const h of hist){
+    if(!byYm.has(h.ym)) byYm.set(h.ym, {total:0});
+    const o = byYm.get(h.ym);
+    o[h.service] = (o[h.service] || 0) + h.c;
+    o.total += h.c;
+  }
+  let maxM = 1;
+  for(const [ym, o] of byYm) if(ym !== "none") maxM = Math.max(maxM, o.total);
+  const years = new Map();
+  let noneCount = 0;
+  for(const [ym, o] of byYm){
+    if(ym === "none"){ noneCount = o.total; continue; }
+    const y = ym.slice(0,4);
+    if(!years.has(y)) years.set(y, []);
+    years.get(y).push([ym, o]);
+  }
+  const cal = $("#cal");
+  cal.innerHTML = "";
+  const sortedYears = [...years.keys()].sort().reverse();
+  sortedYears.forEach((y, yi) => {
+    const rows = years.get(y).sort((a,b)=>b[0].localeCompare(a[0]));
+    const ytotal = rows.reduce((s,[,o])=>s+o.total,0);
+    const det = document.createElement("details");
+    const openYear = state.month ? state.month.startsWith(y) : yi === 0;
+    if(openYear) det.open = true;
+    det.innerHTML = `<summary><span class="tri">&#9654;</span>
+      <span class="yr">${y}年</span><span class="n">${ytotal.toLocaleString()}</span></summary>`;
+    for(const [ym, o] of rows){
+      const btn = document.createElement("button");
+      btn.className = "mrow" + (state.month === ym ? " active" : "");
+      const segs = Object.keys(SVC).map(s => {
+        const w = (o[s] || 0) / maxM * 100;
+        return w ? `<i class="${SVC[s].cls}" style="width:${w.toFixed(2)}%"></i>` : "";
+      }).join("");
+      btn.innerHTML = `<span class="m">${ym.slice(5)}月</span>
+        <span class="bar">${segs}</span><span class="n">${o.total.toLocaleString()}</span>`;
+      btn.addEventListener("click", () => {
+        state.month = (state.month === ym) ? null : ym;
+        renderChips(); doSearch(true);
+      });
+      det.appendChild(btn);
+    }
+    cal.appendChild(det);
+  });
+  if(noneCount){
+    const btn = document.createElement("button");
+    btn.className = "mrow" + (state.month === "none" ? " active" : "");
+    btn.innerHTML = `<span class="m" style="width:auto">日付なし</span>
+      <span class="bar"></span><span class="n">${noneCount.toLocaleString()}</span>`;
+    btn.addEventListener("click", () => {
+      state.month = (state.month === "none") ? null : "none";
+      renderChips(); doSearch(true);
+    });
+    cal.appendChild(btn);
+  }
+  if(!byYm.size) cal.innerHTML = '<div class="side-total">（結果なし）</div>';
+}
+
+function renderChips(){
+  const chips = $("#chips");
+  chips.innerHTML = "";
+  if(state.label){
+    const name = state.label === "*" ? "すべてのブックマーク" : state.label;
+    const c = document.createElement("span");
+    c.className = "chip";
+    c.innerHTML = `&#128278; ${esc(name)} <button aria-label="解除">&#215;</button>`;
+    c.querySelector("button").onclick = () => {
+      state.label = null; loadLabels(); renderChips(); doSearch(true);
+    };
+    chips.appendChild(c);
+  }
+  if(state.month){
+    const label = state.month === "none" ? "日付なし"
+      : `${state.month.slice(0,4)}年${parseInt(state.month.slice(5),10)}月`;
+    const c = document.createElement("span");
+    c.className = "chip";
+    c.innerHTML = `&#128197; ${label} <button aria-label="解除">&#215;</button>`;
+    c.querySelector("button").onclick = () => {
+      state.month = null; renderChips(); doSearch(true);
+    };
+    chips.appendChild(c);
+  }
+}
+
+/* ---------------- ブックマーク ---------------- */
+async function loadLabels(){
+  try{
+    const d = await (await fetch("/api/labels")).json();
+    state.allLabels = d.labels || [];
+    const list = $("#bm-list");
+    list.innerHTML = "";
+    if(!state.allLabels.length){
+      list.innerHTML = `<div class="bm-hint">投稿の &#128278; ボタンから、<br>「お気に入り」「大事な話」など<br>自由な名前でラベルを付けられます。</div>`;
+      if(state.label){ state.label = null; renderChips(); doSearch(true); }
+      return;
+    }
+    const allRow = document.createElement("button");
+    allRow.className = "bm-row" + (state.label === "*" ? " active" : "");
+    allRow.innerHTML = `<span class="ic">&#128278;</span><span class="lbl">すべてのブックマーク</span>
+      <span class="n">${d.total_posts.toLocaleString()}</span>`;
+    allRow.onclick = () => setLabelFilter("*");
+    list.appendChild(allRow);
+    for(const l of state.allLabels){
+      const row = document.createElement("button");
+      row.className = "bm-row" + (state.label === l.label ? " active" : "");
+      row.innerHTML = `<span class="ic">&#127991;</span>
+        <span class="lbl" title="${esc(l.label)}">${esc(l.label)}</span>
+        <span class="n">${l.c.toLocaleString()}</span>`;
+      row.onclick = () => setLabelFilter(l.label);
+      list.appendChild(row);
+    }
+  }catch(e){ console.error(e); }
+}
+
+function setLabelFilter(label){
+  state.label = (state.label === label) ? null : label;
+  loadLabels(); renderChips(); doSearch(true);
+}
+
+/* ポップオーバー（使い回しの1個） */
+const bmPop = document.createElement("div");
+bmPop.className = "bm-pop";
+bmPop.setAttribute("role", "dialog");
+bmPop.setAttribute("aria-label", "ブックマークのラベル編集");
+bmPop.style.display = "none";
+let bmPopPostId = null;
+
+function openBmPop(btn){
+  const pid = +btn.dataset.bm;
+  if(bmPopPostId === pid && bmPop.style.display !== "none"){ closeBmPop(); return; }
+  bmPopPostId = pid;
+  const current = new Set(
+    [...(btn.closest(".post").querySelector("[data-bmtags]")?.querySelectorAll(".bm-tag") || [])]
+      .map(el => el.dataset.bmfilter));
+  const names = [...new Set([...state.allLabels.map(l => l.label), ...current])];
+  let listHTML = names.map(name => `
+    <label class="chk"><input type="checkbox" data-bmlabel="${esc(name)}" ${current.has(name) ? "checked" : ""}>
+      <span class="lbl">${esc(name)}</span></label>`).join("");
+  if(!names.length) listHTML = `<p class="none">まだラベルがありません。下の欄から作成できます。</p>`;
+  bmPop.innerHTML = `
+    <h4>&#128278; ブックマーク <button aria-label="閉じる" data-bmclose>&#215;</button></h4>
+    <div class="list">${listHTML}</div>
+    <div class="newrow">
+      <input type="text" maxlength="50" placeholder="新しいラベル名（例: 大事な話）">
+      <button class="btn">追加</button>
+    </div>`;
+  btn.closest(".post").appendChild(bmPop);
+  bmPop.style.display = "block";
+  const inp = bmPop.querySelector("input[type=text]");
+  const addBtn = bmPop.querySelector(".newrow button");
+  const doAdd = () => {
+    const name = inp.value.trim().slice(0, 50);
+    if(name){ toggleBookmark(pid, name, true); inp.value = ""; }
+  };
+  addBtn.onclick = doAdd;
+  inp.onkeydown = e => { if(e.key === "Enter"){ e.preventDefault(); doAdd(); } };
+  bmPop.querySelector("[data-bmclose]").onclick = closeBmPop;
+  bmPop.querySelectorAll("input[data-bmlabel]").forEach(cb => {
+    cb.onchange = () => toggleBookmark(pid, cb.dataset.bmlabel, cb.checked);
+  });
+  inp.focus();
+}
+
+function closeBmPop(){
+  bmPop.style.display = "none";
+  bmPop.remove();
+  bmPopPostId = null;
+}
+
+async function toggleBookmark(pid, label, on){
+  try{
+    const r = await fetch("/api/bookmark", {method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({post_id: pid, label, on})});
+    const d = await r.json();
+    if(!r.ok){ alert(d.error || "ブックマークの更新に失敗しました"); return; }
+    // カード表示とサイドバーを更新
+    const tags = document.querySelector(`[data-bmtags="${pid}"]`);
+    if(tags) tags.innerHTML = bmTagsHTML(d.labels);
+    const btn = document.querySelector(`.bm-btn[data-bm="${pid}"]`);
+    if(btn){
+      btn.classList.toggle("on", d.labels.length > 0);
+      btn.innerHTML = "\u{1F516}" + (d.labels.length ? "" : " ラベル");
+    }
+    await loadLabels();
+    if(bmPopPostId === pid && bmPop.style.display !== "none"){
+      const cb = [...bmPop.querySelectorAll("input[data-bmlabel]")]
+        .find(x => x.dataset.bmlabel === label);
+      if(cb) cb.checked = on;
+      else if(on){                     // 新規ラベル → チェック済みで一覧に追加
+        const lab = document.createElement("label");
+        lab.className = "chk";
+        lab.innerHTML = `<input type="checkbox" data-bmlabel="${esc(label)}" checked>
+          <span class="lbl">${esc(label)}</span>`;
+        lab.querySelector("input").onchange = ev =>
+          toggleBookmark(pid, label, ev.target.checked);
+        const none = bmPop.querySelector(".none");
+        if(none) none.remove();
+        bmPop.querySelector(".list").appendChild(lab);
+      }
+    }
+    // ラベル絞り込み表示中に外した場合は再検索で整合を取る
+    if(state.label && !on &&
+       (state.label === "*" ? d.labels.length === 0 : state.label === label)){
+      doSearch(true);
+    }
+  }catch(e){
+    alert("ブックマークの更新に失敗しました: " + e);
+  }
+}
+
+/* ---------------- タブ ---------------- */
+document.querySelectorAll(".tab").forEach(t => {
+  t.addEventListener("click", () => {
+    if(state.tab === t.dataset.tab) return;
+    state.tab = t.dataset.tab;
+    document.querySelectorAll(".tab").forEach(x => {
+      const on = x === t;
+      x.classList.toggle("active", on);
+      x.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    $("#type-sec").classList.toggle("disabled", state.tab === "likes");
+    doSearch(true);
+  });
+});
+
+/* ---------------- イベント ---------------- */
+function runQuery(){
+  state.q = $("#q").value;
+  doSearch(true);
+}
+let searchTimer = null;
+function scheduleSearch(){
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(runQuery, 350);   // 入力が落ち着いてから検索
+}
+$("#btn-search").addEventListener("click", runQuery);
+$("#q").addEventListener("keydown", e => {
+  if(e.key === "Enter"){ clearTimeout(searchTimer); runQuery(); }
+});
+$("#q").addEventListener("input", scheduleSearch);   // 打鍵に追従（デバウンス付き）
+document.addEventListener("keydown", e => {
+  if(e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){
+    e.preventDefault(); $("#q").focus();
+  }
+  if(e.key === "Escape"){
+    closeBmPop();
+    $("#overlay").classList.remove("show");
+    $("#help-modal").classList.remove("show");
+    $("#sidebar").classList.remove("open");
+  }
+});
+document.querySelectorAll("#type-list input[data-type]").forEach(cb => {
+  cb.addEventListener("change", () => {
+    cb.checked ? state.types.add(cb.dataset.type) : state.types.delete(cb.dataset.type);
+    doSearch(true);
+  });
+});
+$("#chk-reply").addEventListener("change", e => {
+  state.replies = e.target.checked; doSearch(true);
+});
+$("#order-sel").addEventListener("change", e => {
+  state.order = e.target.value; doSearch(true);
+});
+$("#btn-random").addEventListener("click", () => {
+  state.order = "random"; doSearch(true);
+});
+$("#btn-today").addEventListener("click", () => {
+  const now = new Date();
+  const md = String(now.getMonth()+1).padStart(2,"0") + "-" +
+             String(now.getDate()).padStart(2,"0");
+  $("#q").value = "date:" + md;
+  state.month = null; renderChips(); runQuery();
+});
+$("#results").addEventListener("click", e => {
+  const bmBtn = e.target.closest(".bm-btn[data-bm]");
+  if(bmBtn){ openBmPop(bmBtn); return; }
+  const bmTag = e.target.closest(".bm-tag[data-bmfilter]");
+  if(bmTag){ setLabelFilter(bmTag.dataset.bmfilter); window.scrollTo({top:0}); return; }
+  if(!e.target.closest(".bm-pop") && bmPop.style.display !== "none") closeBmPop();
+  const tag = e.target.closest("a.hashtag");
+  if(tag){
+    e.preventDefault();
+    $("#q").value = "#" + tag.dataset.tag;
+    runQuery();
+    window.scrollTo({top:0});
+    return;
+  }
+  const img = e.target.closest(".media img[data-full]");
+  if(img){
+    $("#overlay-img").src = img.dataset.full;
+    $("#overlay").classList.add("show");
+  }
+});
+$("#overlay").addEventListener("click", () => $("#overlay").classList.remove("show"));
+$("#btn-help").addEventListener("click", () => $("#help-modal").classList.add("show"));
+$("#help-close").addEventListener("click", () => $("#help-modal").classList.remove("show"));
+$("#help-modal").addEventListener("click", e => {
+  if(e.target === e.currentTarget) e.currentTarget.classList.remove("show");
+});
+$("#menu-btn").addEventListener("click", () =>
+  $("#sidebar").classList.toggle("open"));
+$("#top-btn").addEventListener("click", () =>
+  window.scrollTo({top:0, behavior:"smooth"}));
+addEventListener("scroll", () =>
+  $("#top-btn").classList.toggle("show", window.scrollY > 900), {passive:true});
+
+/* 無限スクロール */
+const io = new IntersectionObserver(entries => {
+  if(entries.some(en => en.isIntersecting)) maybeLoadMore();
+}, {rootMargin: "600px"});
+io.observe($("#sentinel"));
+function maybeLoadMore(){
+  if(state.loading || state.done) return;
+  const rect = $("#sentinel").getBoundingClientRect();
+  if(rect.top < window.innerHeight + 600) doSearch(false);
+}
+
+/* 起動 */
+(async () => {
+  await Promise.all([loadMeta(), loadLabels()]);
+  await doSearch(true);
+})();
+</script>
+</body>
+</html>
