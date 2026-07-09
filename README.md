@@ -7,6 +7,6 @@
 
 <br><br>
 
-　データベース検索システムのイメージ↓  
+　データベース検索システムのイメージ（旧イメージです）↓  
  
   <img width="1839" height="2000" alt="image" src="https://github.com/user-attachments/assets/3fd4ac4c-a5ee-4ec0-b53b-df7853472d83" />
