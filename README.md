@@ -5,8 +5,14 @@
   本アプリの投稿者はコードの読み方がわかりません。一切の責任は存在しません。  
 ※初回のデータ取り込み時に投稿（ポスト・ノート）数が１万以上とかある場合には、投稿データのエクスポートを行いjson等から取り込むことを推奨します。
 
-<br><br>
+<br><br><br><br>
 
-　データベース検索システムのイメージ（旧イメージです）↓  
+　データベース検索システムのイメージ（新イメージです）↓   
+<img width="1257" height="2492" alt="rapture_20260709211741" src="https://github.com/user-attachments/assets/a8d48fff-2446-4990-850c-e964b9cdcb07" />  
+
+<br><br><br><br>
+
+　データベース検索システムのイメージ（旧イメージです）↓    
  
   <img width="1839" height="2000" alt="image" src="https://github.com/user-attachments/assets/3fd4ac4c-a5ee-4ec0-b53b-df7853472d83" />
+
