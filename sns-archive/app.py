@@ -307,6 +307,35 @@ def build_query(q, ui):
     return where, params, order_sql, order
 
 
+def attach_details(con, posts):
+    """投稿行のリストに media / labels / extra を付与する（run_search と文脈表示で共用）。"""
+    ids = [p["id"] for p in posts]
+    media_map = {}
+    if ids:
+        ph = ",".join("?" * len(ids))
+        for m in con.execute(
+                f"SELECT * FROM media WHERE post_id IN ({ph}) "
+                "ORDER BY post_id, sort", ids):
+            media_map.setdefault(m["post_id"], []).append({
+                "kind": m["kind"],
+                "url": ("/media/" + m["local_path"]) if m["local_path"] else None,
+                "remote_url": m["remote_url"],
+                "alt": m["alt"],
+            })
+    label_map = {}
+    if ids:
+        ph = ",".join("?" * len(ids))
+        for b in con.execute(
+                f"SELECT post_id, label FROM bookmarks WHERE post_id IN ({ph}) "
+                "ORDER BY label", ids):
+            label_map.setdefault(b["post_id"], []).append(b["label"])
+    for p in posts:
+        p["media"] = media_map.get(p["id"], [])
+        p["labels"] = label_map.get(p["id"], [])
+        p["extra"] = json.loads(p["extra"]) if p.get("extra") else {}
+    return posts
+
+
 def run_search(q, ui, page, per):
     con = common.connect()
     try:
@@ -319,31 +348,7 @@ def run_search(q, ui, page, per):
         rows = con.execute(
             f"SELECT * FROM posts {wsql} {order_sql} LIMIT ? OFFSET ?",
             [*params, per, offset]).fetchall()
-        posts = [dict(r) for r in rows]
-        ids = [p["id"] for p in posts]
-        media_map = {}
-        if ids:
-            ph = ",".join("?" * len(ids))
-            for m in con.execute(
-                    f"SELECT * FROM media WHERE post_id IN ({ph}) "
-                    "ORDER BY post_id, sort", ids):
-                media_map.setdefault(m["post_id"], []).append({
-                    "kind": m["kind"],
-                    "url": ("/media/" + m["local_path"]) if m["local_path"] else None,
-                    "remote_url": m["remote_url"],
-                    "alt": m["alt"],
-                })
-        label_map = {}
-        if ids:
-            ph = ",".join("?" * len(ids))
-            for b in con.execute(
-                    f"SELECT post_id, label FROM bookmarks WHERE post_id IN ({ph}) "
-                    "ORDER BY label", ids):
-                label_map.setdefault(b["post_id"], []).append(b["label"])
-        for p in posts:
-            p["media"] = media_map.get(p["id"], [])
-            p["labels"] = label_map.get(p["id"], [])
-            p["extra"] = json.loads(p["extra"]) if p.get("extra") else {}
+        posts = attach_details(con, [dict(r) for r in rows])
         result = {"total": total, "page": page, "per": per,
                   "order": order, "posts": posts}
         if page == 1:
@@ -465,6 +470,63 @@ def api_bookmark():
         labels = [r[0] for r in con.execute(
             "SELECT label FROM bookmarks WHERE post_id=? ORDER BY label", (post_id,))]
         return jsonify({"ok": True, "labels": labels})
+    finally:
+        con.close()
+
+
+@app.route("/api/context")
+def api_context():
+    """指定した投稿の前後（同じアカウントの時系列）を返す。
+
+    id=<posts.id>                 … 初回。対象 + 前後 per 件ずつ
+    id + dir=newer&cursor=L,I     … その端よりさらに新しい per 件
+    id + dir=older&cursor=L,I     … その端よりさらに古い per 件
+    （カーソルは created_local と posts.id の組。同時刻の取りこぼしを防ぐ）
+    """
+    try:
+        pid = int(request.args.get("id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "id が不正です"}), 400
+    per = min(50, max(1, int(request.args.get("per", 10))))
+    direction = request.args.get("dir")
+    con = common.connect()
+    try:
+        row = con.execute("SELECT * FROM posts WHERE id=?", (pid,)).fetchone()
+        if not row:
+            return jsonify({"error": "投稿が見つかりません"}), 404
+        target = dict(row)
+        svc, acct = target["service"], target["account"]
+
+        def fetch(newer, loc, rid, n):
+            if newer:
+                rows = con.execute(
+                    "SELECT * FROM posts WHERE service=? AND account=? "
+                    "AND (created_local > ? OR (created_local = ? AND id > ?)) "
+                    "ORDER BY created_local ASC, id ASC LIMIT ?",
+                    (svc, acct, loc, loc, rid, n)).fetchall()
+                rows = rows[::-1]          # 表示は常に新しい順
+            else:
+                rows = con.execute(
+                    "SELECT * FROM posts WHERE service=? AND account=? "
+                    "AND (created_local < ? OR (created_local = ? AND id < ?)) "
+                    "ORDER BY created_local DESC, id DESC LIMIT ?",
+                    (svc, acct, loc, loc, rid, n)).fetchall()
+            return attach_details(con, [dict(r) for r in rows])
+
+        if direction in ("newer", "older"):
+            cur = (request.args.get("cursor") or "").rsplit(",", 1)
+            if len(cur) != 2 or not cur[1].isdigit():
+                return jsonify({"error": "cursor が不正です"}), 400
+            posts = fetch(direction == "newer", cur[0], int(cur[1]), per)
+            return jsonify({"posts": posts})
+
+        newer = fetch(True, target["created_local"], pid, per)
+        older = fetch(False, target["created_local"], pid, per)
+        return jsonify({
+            "target": attach_details(con, [target])[0],
+            "newer": newer,
+            "older": older,
+        })
     finally:
         con.close()
 

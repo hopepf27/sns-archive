@@ -297,6 +297,33 @@ html[data-theme="dark"] .bm-pop{border:1px solid var(--border)}
 html[data-theme="dark"] .bm-pop .newrow button{color:#10131a}
 .bm-pop .none{color:var(--faint);font-size:13px;margin:0 0 8px}
 
+/* ---------- 文脈表示（前後の投稿） ---------- */
+.ctx-btn{background:none;border:0;cursor:pointer;color:var(--faint);font-size:12px;
+  padding:3px 8px;border-radius:999px;line-height:1.4;transition:background .12s,color .12s}
+.ctx-btn:hover{color:var(--text);background:var(--panel2)}
+.ctx-modal{z-index:90}                      /* 画像の拡大(100)より下に置く */
+.ctx-box{max-width:720px;background:var(--bg);padding:22px 22px 26px}
+.ctx-box h3{margin-bottom:2px}
+.ctx-box .sub{margin-bottom:14px}
+.ctx-box .post{box-shadow:var(--shadow)}
+html[data-theme="dark"] .ctx-box .post{border:1px solid var(--border)}
+.post.ctx-target{outline:2px solid var(--link);outline-offset:2px}
+.post.ctx-target::after{content:"この投稿";position:absolute;top:-9px;right:14px;
+  background:var(--link);color:#fff;font-size:10.5px;font-weight:700;
+  letter-spacing:.06em;padding:1px 10px;border-radius:999px}
+html[data-theme="dark"] .post.ctx-target::after{color:#10131a}
+.ctx-more{display:block;width:100%;margin:2px 0 16px;padding:10px;cursor:pointer;
+  border:1px dashed var(--border2);border-radius:var(--r-s);background:none;
+  color:var(--link);font-size:13.5px;transition:background .12s}
+#ctx-older{margin:0 0 4px}
+.ctx-more:hover{background:var(--accent-soft)}
+.ctx-more:disabled{color:var(--faint);cursor:default;border-style:solid;
+  border-color:var(--border);background:none}
+@media (pointer:coarse){
+  .ctx-btn{padding:8px 10px;font-size:13px}
+  .ctx-more{padding:13px}
+}
+
 /* ---------- その他 ---------- */
 .sentinel{padding:32px 0;text-align:center;color:var(--faint);font-size:13.5px}
 .empty{border-radius:var(--r-m);padding:32px;color:var(--muted);font-size:15px;
@@ -512,6 +539,17 @@ body.no-scroll{overflow:hidden}
   </div>
 </div>
 
+<div class="modal ctx-modal" id="ctx-modal" role="dialog" aria-modal="true" aria-label="前後の投稿">
+  <div class="modal-box ctx-box">
+    <button class="modal-close" id="ctx-close" aria-label="閉じる">&#215;</button>
+    <h3>&#9202; 前後の投稿</h3>
+    <p class="sub" id="ctx-sub"></p>
+    <button class="ctx-more" id="ctx-newer">&#9650; これより後（新しい側）を10件</button>
+    <div id="ctx-list"></div>
+    <button class="ctx-more" id="ctx-older">&#9660; これより前（古い側）を10件</button>
+  </div>
+</div>
+
 <div class="modal" id="help-modal" role="dialog" aria-modal="true" aria-label="検索コマンド一覧">
   <div class="modal-box">
     <button class="modal-close" id="help-close" aria-label="閉じる">&#215;</button>
@@ -664,6 +702,7 @@ function postCard(p){
   if(p.url) foot.push(`<a href="${esc(p.url)}" target="_blank" rel="noopener">元の投稿 &#8599;</a>`);
   const hasBm = (p.labels || []).length > 0;
   foot.push(`<button class="bm-btn${hasBm ? " on" : ""}" data-bm="${p.id}" title="ブックマーク（ラベルを付ける）" aria-label="ブックマーク（ラベルを付ける）">&#128278;${hasBm ? "" : " ラベル"}</button>`);
+  foot.push(`<button class="ctx-btn" data-ctx="${p.id}" title="この投稿の前後を時系列で表示" aria-label="この投稿の前後を表示">&#9202; 前後</button>`);
   el.innerHTML = `
     <header>
       <span class="pill ${svc.cls}">${svc.label}</span>
@@ -998,13 +1037,13 @@ async function toggleBookmark(pid, label, on){
     const d = await r.json();
     if(!r.ok){ alert(d.error || "ブックマークの更新に失敗しました"); return; }
     // カード表示とサイドバーを更新
-    const tags = document.querySelector(`[data-bmtags="${pid}"]`);
-    if(tags) tags.innerHTML = bmTagsHTML(d.labels);
-    const btn = document.querySelector(`.bm-btn[data-bm="${pid}"]`);
-    if(btn){
+    document.querySelectorAll(`[data-bmtags="${pid}"]`).forEach(tags => {
+      tags.innerHTML = bmTagsHTML(d.labels);
+    });
+    document.querySelectorAll(`.bm-btn[data-bm="${pid}"]`).forEach(btn => {
       btn.classList.toggle("on", d.labels.length > 0);
       btn.innerHTML = "\u{1F516}" + (d.labels.length ? "" : " ラベル");
-    }
+    });
     await loadLabels();
     if(bmPopPostId === pid && bmPop.style.display !== "none"){
       const cb = [...bmPop.querySelectorAll("input[data-bmlabel]")]
@@ -1079,6 +1118,7 @@ document.addEventListener("keydown", e => {
   if(e.key === "Escape"){
     closeBmPop();
     closeLightbox();
+    closeCtx();
     setSidebar(false);
     $("#help-modal").classList.remove("show");
   }
@@ -1105,15 +1145,23 @@ $("#btn-today").addEventListener("click", () => {
   $("#q").value = "date:" + md;
   state.month = null; renderChips(); runQuery();
 });
-$("#results").addEventListener("click", e => {
+function onPostClick(e){
+  const ctxBtn = e.target.closest(".ctx-btn[data-ctx]");
+  if(ctxBtn){ openContext(+ctxBtn.dataset.ctx); return; }
   const bmBtn = e.target.closest(".bm-btn[data-bm]");
   if(bmBtn){ openBmPop(bmBtn); return; }
   const bmTag = e.target.closest(".bm-tag[data-bmfilter]");
-  if(bmTag){ setLabelFilter(bmTag.dataset.bmfilter); window.scrollTo({top:0}); return; }
+  if(bmTag){
+    closeCtx();
+    setLabelFilter(bmTag.dataset.bmfilter);
+    window.scrollTo({top:0});
+    return;
+  }
   if(!e.target.closest(".bm-pop") && bmPop.style.display !== "none") closeBmPop();
   const tag = e.target.closest("a.hashtag");
   if(tag){
     e.preventDefault();
+    closeCtx();
     $("#q").value = "#" + tag.dataset.tag;
     runQuery();
     window.scrollTo({top:0});
@@ -1126,6 +1174,85 @@ $("#results").addEventListener("click", e => {
     openLightbox(all.map(el => ({src: el.dataset.full, alt: el.alt || ""})),
                  all.indexOf(img));
   }
+}
+$("#results").addEventListener("click", onPostClick);
+$("#ctx-list").addEventListener("click", onPostClick);
+
+/* ---------------- 文脈表示（前後の投稿） ---------------- */
+const ctx = {top: null, bottom: null, id: null};
+
+async function openContext(id){
+  ctx.id = id;
+  const box = document.querySelector(".ctx-box");
+  $("#ctx-list").innerHTML = "";
+  $("#ctx-sub").textContent = "読み込み中…";
+  setBtn("#ctx-newer", true, "▲ これより後（新しい側）を10件");
+  setBtn("#ctx-older", true, "▼ これより前（古い側）を10件");
+  $("#ctx-modal").classList.add("show");
+  document.body.classList.add("no-scroll");
+  try{
+    const d = await (await fetch(`/api/context?id=${id}`)).json();
+    if(d.error){ $("#ctx-sub").textContent = d.error; return; }
+    $("#ctx-sub").textContent = `${d.target.account} の時系列（新しい順）`;
+    const list = $("#ctx-list");
+    list.innerHTML = "";
+    for(const p of d.newer) list.appendChild(postCard(p));
+    const tEl = postCard(d.target);
+    tEl.classList.add("ctx-target");
+    list.appendChild(tEl);
+    for(const p of d.older) list.appendChild(postCard(p));
+    ctx.top = cursorOf(d.newer[0] || d.target);
+    ctx.bottom = cursorOf(d.older[d.older.length - 1] || d.target);
+    if(!d.newer.length) setBtn("#ctx-newer", false, "これより新しい投稿はありません");
+    if(!d.older.length) setBtn("#ctx-older", false, "これより古い投稿はありません");
+    // 対象投稿が見える位置までスクロール
+    requestAnimationFrame(() => {
+      box.scrollTop = tEl.offsetTop - box.clientHeight / 2 + tEl.offsetHeight / 2;
+    });
+  }catch(err){
+    $("#ctx-sub").textContent = "読み込みに失敗しました: " + err;
+  }
+}
+function cursorOf(p){ return `${p.created_local},${p.id}`; }
+function setBtn(sel, on, text){
+  const b = $(sel);
+  b.disabled = !on;
+  b.textContent = text;
+}
+
+async function loadCtx(dir){
+  const cur = dir === "newer" ? ctx.top : ctx.bottom;
+  if(!cur) return;
+  const box = document.querySelector(".ctx-box");
+  const d = await (await fetch(
+    `/api/context?id=${ctx.id}&dir=${dir}&cursor=${encodeURIComponent(cur)}`)).json();
+  const posts = d.posts || [];
+  const list = $("#ctx-list");
+  if(dir === "newer"){
+    if(!posts.length){ setBtn("#ctx-newer", false, "これより新しい投稿はありません"); return; }
+    const before = box.scrollHeight;
+    const frag = document.createDocumentFragment();
+    for(const p of posts) frag.appendChild(postCard(p));
+    list.prepend(frag);
+    box.scrollTop += box.scrollHeight - before;   // 見ていた位置を保つ
+    ctx.top = cursorOf(posts[0]);
+  }else{
+    if(!posts.length){ setBtn("#ctx-older", false, "これより古い投稿はありません"); return; }
+    for(const p of posts) list.appendChild(postCard(p));
+    ctx.bottom = cursorOf(posts[posts.length - 1]);
+  }
+}
+function closeCtx(){
+  if(!$("#ctx-modal").classList.contains("show")) return;
+  $("#ctx-modal").classList.remove("show");
+  document.body.classList.remove("no-scroll");
+  closeBmPop();
+}
+$("#ctx-newer").addEventListener("click", () => loadCtx("newer"));
+$("#ctx-older").addEventListener("click", () => loadCtx("older"));
+$("#ctx-close").addEventListener("click", closeCtx);
+$("#ctx-modal").addEventListener("click", e => {
+  if(e.target === $("#ctx-modal")) closeCtx();   // 背景クリックで閉じる
 });
 
 /* ---------------- ライトボックス（ギャラリー / スワイプ対応） ---------------- */
