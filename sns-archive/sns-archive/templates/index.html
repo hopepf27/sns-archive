@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>統合SNSアーカイブ</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128218;</text></svg>">
+<script>
+/* テーマ初期化はチラつき防止のため最優先で実行 */
+(function(){
+  try{
+    var t = localStorage.getItem("theme");
+    if(t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+  }catch(e){}
+})();
+</script>
+<style>
+/* =====================================================================
+   統合SNSアーカイブ — フラットデザイン2.0
+   思想: 境界線ではなく「面の色差・余白・2段の影」で階層を作る。
+   飾りはサービス4色のシステム（左バー/ピル/積み上げバー/内訳）に一本化。
+   ===================================================================== */
+:root{
+  /* 面 */
+  --bg:#f3f4f8; --bg2:#e9ebf1;
+  --panel:#ffffff; --panel2:#eef0f5;
+  --border:#e4e7ee; --border2:#c9cfdc;      /* 入力欄・区切りなど最小限にのみ使用 */
+  /* 文字 */
+  --text:#191f2e; --muted:#525c70; --faint:#68718328;
+  --faint:#666f82;
+  /* アクセント: インクの藍 */
+  --link:#3050c8; --link-strong:#2a45ae; --hashtag:#6d47c8;
+  --accent-soft:rgba(48,80,200,.10);
+  --ring:rgba(48,80,200,.35);
+  /* 深度は2段のみ: 置かれている / 浮いている */
+  --shadow:0 1px 2px rgba(20,27,45,.05), 0 2px 8px rgba(20,27,45,.05);
+  --shadow-lg:0 6px 16px rgba(20,27,45,.10), 0 24px 56px rgba(20,27,45,.18);
+  --scrim:rgba(22,28,44,.44);
+  /* サービス4色（このUIの唯一の彩り） */
+  --tw:#1d9bf0; --mk:#79a20e; --bs:#2f7fe0; --md:#6364ff;
+  /* 角丸スケール */
+  --r-s:10px; --r-m:14px; --r-l:20px;
+  --font-body:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+  --font-mono:Consolas,"SF Mono",ui-monospace,"Courier New",monospace;
+  color-scheme:light;
+}
+:root[data-theme="dark"]{
+  --bg:#13161d; --bg2:#0f1218;
+  --panel:#1b2029; --panel2:#252c39;
+  --border:#2a3140; --border2:#3e4a63;
+  --text:#eceef2; --muted:#a6aebe; --faint:#8a93a5;
+  --link:#9db4f2; --link-strong:#b7c8f7; --hashtag:#bda6f0;
+  --accent-soft:rgba(157,180,242,.13);
+  --ring:rgba(157,180,242,.40);
+  --shadow:none;
+  --shadow-lg:0 8px 24px rgba(0,0,0,.45), 0 28px 72px rgba(0,0,0,.55);
+  --scrim:rgba(4,6,10,.72);
+  --tw:#3aa8f0; --mk:#a3cf24; --bs:#4a9bff; --md:#8b89ff;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#13161d; --bg2:#0f1218;
+    --panel:#1b2029; --panel2:#252c39;
+    --border:#2a3140; --border2:#3e4a63;
+    --text:#eceef2; --muted:#a6aebe; --faint:#8a93a5;
+    --link:#9db4f2; --link-strong:#b7c8f7; --hashtag:#bda6f0;
+    --accent-soft:rgba(157,180,242,.13);
+    --ring:rgba(157,180,242,.40);
+    --shadow:none;
+    --shadow-lg:0 8px 24px rgba(0,0,0,.45), 0 28px 72px rgba(0,0,0,.55);
+    --scrim:rgba(4,6,10,.72);
+    --tw:#3aa8f0; --mk:#a3cf24; --bs:#4a9bff; --md:#8b89ff;
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);
+  font-size:16px;line-height:1.8;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:inherit}
+button,select,input{font-family:inherit;font-size:inherit;color:inherit}
+button{touch-action:manipulation}
+::selection{background:var(--accent-soft)}
+:focus-visible{outline:2px solid var(--link);outline-offset:2px;border-radius:6px}
+@media (prefers-contrast:more){
+  :root{--border:#9aa1b0; --border2:#7d8494; --faint:#49536a; --muted:#3c4658}
+  html[data-theme="dark"]{--border:#5a6478; --border2:#78829a; --faint:#b3bccd; --muted:#c4ccdb}
+}
+
+/* ---------- レイアウト ---------- */
+.layout{display:grid;grid-template-columns:296px minmax(0,1fr);min-height:100vh}
+.sidebar{background:var(--bg2);padding:26px 20px 48px;
+  position:sticky;top:0;height:100vh;overflow-y:auto;scrollbar-width:thin}
+.main{max-width:736px;width:100%;margin:0 auto;padding:0 24px 128px}
+
+/* ---------- サイドバー ---------- */
+.side-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.wordmark{font-weight:800;font-size:21px;letter-spacing:.01em;margin:0;line-height:1.3}
+.wordmark small{display:block;font-family:var(--font-mono);font-size:10px;
+  letter-spacing:.30em;color:var(--faint);margin-top:5px;font-weight:400}
+.theme-btn{flex:none;width:38px;height:38px;border-radius:50%;cursor:pointer;
+  background:var(--panel);border:0;font-size:16px;
+  display:grid;place-items:center;box-shadow:var(--shadow);
+  transition:transform .15s}
+.theme-btn:hover{transform:scale(1.06)}
+.theme-btn:active{transform:scale(.96)}
+.side-total{font-family:var(--font-mono);color:var(--muted);font-size:12px;
+  margin:14px 0 26px;font-variant-numeric:tabular-nums}
+.side-sec{margin:0 0 28px}
+.side-sec h2{font-size:11px;letter-spacing:.18em;color:var(--faint);
+  font-weight:700;margin:0 0 10px;text-transform:uppercase}
+.side-sec.disabled{opacity:.4;pointer-events:none}
+.chk{display:flex;align-items:center;gap:9px;padding:7px 10px;cursor:pointer;
+  border-radius:var(--r-s);font-size:14px;transition:background .12s}
+.chk:hover{background:var(--panel)}
+.chk input{accent-color:var(--link);width:15px;height:15px;flex:none;cursor:pointer}
+.chk .dot{width:9px;height:9px;border-radius:3px;flex:none}
+.chk .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chk .n{font-family:var(--font-mono);font-size:11px;color:var(--faint);
+  font-variant-numeric:tabular-nums}
+.side-btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{background:var(--panel);border:0;border-radius:var(--r-s);
+  padding:8px 15px;cursor:pointer;font-size:13.5px;color:var(--text);
+  box-shadow:var(--shadow);transition:background .12s, transform .1s}
+.btn:hover{background:var(--panel2)}
+.btn:active{transform:scale(.97)}
+html[data-theme="dark"] .btn,
+select.btn{border:1px solid var(--border)}
+select.btn{padding:7px 10px}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .btn{border:1px solid var(--border)}
+}
+
+/* 月別ナビ（積み上げバー） */
+.cal details{margin:0 0 2px}
+.cal summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;
+  gap:8px;padding:6px 10px;border-radius:var(--r-s);font-size:14px;transition:background .12s}
+.cal summary::-webkit-details-marker{display:none}
+.cal summary:hover{background:var(--panel)}
+.cal summary .yr{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.cal summary .n{margin-left:auto;font-family:var(--font-mono);font-size:11px;
+  color:var(--faint);font-variant-numeric:tabular-nums}
+.cal summary .tri{color:var(--faint);font-size:10px;transition:transform .15s}
+.cal details[open] summary .tri{transform:rotate(90deg)}
+.mrow{display:grid;grid-template-columns:34px 1fr 44px;align-items:center;gap:8px;
+  padding:4px 10px 4px 20px;border-radius:var(--r-s);cursor:pointer;border:0;width:100%;
+  background:none;text-align:left;transition:background .12s}
+.mrow:hover{background:var(--panel)}
+.mrow.active{background:var(--accent-soft)}
+.mrow.active .m{color:var(--link);font-weight:700}
+.mrow .m{font-family:var(--font-mono);font-size:12px;color:var(--muted);
+  font-variant-numeric:tabular-nums}
+.mrow .n{font-family:var(--font-mono);font-size:11px;color:var(--faint);
+  text-align:right;font-variant-numeric:tabular-nums}
+.bar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--panel)}
+.bar i{display:block;height:100%}
+.bar .tw{background:var(--tw)}.bar .mk{background:var(--mk)}
+.bar .bs{background:var(--bs)}.bar .md{background:var(--md)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin:12px 6px 0;font-size:11.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend .dot{width:9px;height:9px;border-radius:3px}
+
+/* ---------- ブックマーク（サイドバー） ---------- */
+.bm-row{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:var(--r-s);
+  cursor:pointer;border:0;width:100%;background:none;text-align:left;font-size:14px;
+  color:var(--text);transition:background .12s}
+.bm-row:hover{background:var(--panel)}
+.bm-row.active{background:var(--accent-soft);color:var(--link);font-weight:700}
+.bm-row .ic{flex:none;font-size:12px}
+.bm-row .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bm-row .n{font-family:var(--font-mono);font-size:11px;color:var(--faint);
+  font-variant-numeric:tabular-nums;font-weight:400}
+.bm-hint{color:var(--faint);font-size:12.5px;padding:2px 10px;line-height:1.7}
+
+/* ---------- 検索エリア（このアプリの主役） ---------- */
+.searchwrap{position:sticky;top:0;z-index:30;
+  background:linear-gradient(var(--bg) 88%,transparent);padding:20px 0 14px}
+.tabs{display:inline-flex;background:var(--bg2);
+  border-radius:999px;padding:4px;gap:2px;margin-bottom:14px}
+.tab{border:0;background:none;border-radius:999px;padding:8px 22px;cursor:pointer;
+  font-size:14px;color:var(--muted);display:inline-flex;align-items:center;gap:8px;
+  transition:color .12s}
+.tab .n{font-family:var(--font-mono);font-size:11px;color:var(--faint);
+  font-variant-numeric:tabular-nums}
+.tab:hover{color:var(--text)}
+.tab.active{background:var(--panel);color:var(--text);box-shadow:var(--shadow);
+  font-weight:700}
+.tab.active .n{color:var(--muted)}
+.searchbar{display:flex;gap:10px}
+.searchbar input{flex:1;background:var(--panel);border:1px solid transparent;
+  border-radius:999px;padding:12px 22px;font-size:16px;color:var(--text);
+  box-shadow:var(--shadow);transition:box-shadow .15s, border-color .15s}
+.searchbar input::placeholder{color:var(--faint)}
+.searchbar input:focus{outline:none;border-color:var(--link);
+  box-shadow:0 0 0 4px var(--ring)}
+.searchbar .btn{border-radius:999px;padding:8px 18px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--accent-soft);
+  color:var(--link);border-radius:999px;padding:4px 8px 4px 14px;
+  font-size:13px;font-weight:600}
+html[data-theme="dark"] .chip{color:var(--link-strong)}
+.chip button{background:none;border:0;cursor:pointer;color:inherit;opacity:.65;
+  font-size:15px;line-height:1;padding:2px 5px;border-radius:50%}
+.chip button:hover{opacity:1}
+.meta-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;
+  color:var(--muted);font-size:13.5px;margin:8px 4px 22px;
+  font-variant-numeric:tabular-nums}
+.meta-line .svc-n{font-family:var(--font-mono);font-size:12px}
+.svc-n.tw{color:color-mix(in srgb,var(--tw) 62%,var(--text))}
+.svc-n.mk{color:color-mix(in srgb,var(--mk) 62%,var(--text))}
+.svc-n.bs{color:color-mix(in srgb,var(--bs) 62%,var(--text))}
+.svc-n.md{color:color-mix(in srgb,var(--md) 62%,var(--text))}
+
+/* ---------- 投稿カード ---------- */
+.post{position:relative;background:var(--panel);border:0;
+  border-radius:var(--r-m);padding:16px 22px 13px 26px;margin:0 0 16px;
+  overflow-wrap:anywhere;box-shadow:var(--shadow)}
+.post::before{content:"";position:absolute;left:10px;top:16px;bottom:16px;
+  width:4px;border-radius:2px;background:var(--border2)}
+.post.s-twitter::before{background:var(--tw)}
+.post.s-misskey::before{background:var(--mk)}
+.post.s-bluesky::before{background:var(--bs)}
+.post.s-mastodon::before{background:var(--md)}
+@media (prefers-reduced-motion:no-preference){
+  .post{opacity:0;transform:translateY(8px);transition:opacity .3s,transform .3s}
+  .post.in{opacity:1;transform:none}
+}
+.post header{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;
+  font-size:13px;color:var(--muted);margin-bottom:7px}
+.pill{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;
+  font-weight:700;padding:2px 10px;border-radius:999px;border:0}
+.pill.tw{color:color-mix(in srgb,var(--tw) 62%,var(--text));background:color-mix(in srgb,var(--tw) 13%,transparent)}
+.pill.mk{color:color-mix(in srgb,var(--mk) 62%,var(--text));background:color-mix(in srgb,var(--mk) 15%,transparent)}
+.pill.bs{color:color-mix(in srgb,var(--bs) 62%,var(--text));background:color-mix(in srgb,var(--bs) 13%,transparent)}
+.pill.md{color:color-mix(in srgb,var(--md) 62%,var(--text));background:color-mix(in srgb,var(--md) 13%,transparent)}
+.post header .acct{overflow:hidden;text-overflow:ellipsis;max-width:40%;white-space:nowrap}
+.post header .date{margin-left:auto;font-family:var(--font-mono);font-size:12px;
+  font-variant-numeric:tabular-nums;color:var(--faint);text-decoration:none}
+.post header .date:hover{color:var(--text);text-decoration:underline}
+.tag-reply{font-size:11.5px;color:var(--faint)}
+.badge{font-size:13px;color:var(--muted);margin:0 0 7px}
+.badge b{color:var(--text);font-weight:700}
+.post .text{white-space:pre-wrap;font-size:16px;line-height:1.85}
+.post .text a{color:var(--link);text-decoration:none}
+.post .text a:hover{text-decoration:underline}
+.post .text a.hashtag{color:var(--hashtag)}
+.media{display:grid;gap:8px;margin-top:12px}
+.media[data-n="1"]{grid-template-columns:1fr}
+.media:not([data-n="1"]){grid-template-columns:1fr 1fr}
+.media img{width:100%;border-radius:var(--r-s);background:var(--panel2);cursor:zoom-in;display:block}
+.media[data-n="1"] img{max-height:480px;object-fit:contain}
+.media:not([data-n="1"]) img{aspect-ratio:16/11;object-fit:cover}
+.media video{width:100%;max-height:480px;border-radius:var(--r-s);background:#000;display:block}
+.media audio{width:100%}
+.media .vlink{position:relative;display:block}
+.media .vlink::after{content:"\25B6";position:absolute;inset:0;display:grid;
+  place-items:center;font-size:34px;color:#fff;text-shadow:0 1px 8px rgba(0,0,0,.8)}
+.media a.filelink{font-size:13.5px;color:var(--link)}
+.post footer{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;
+  margin-top:10px;font-size:12px;color:var(--faint);
+  font-variant-numeric:tabular-nums}
+.post footer a{color:var(--faint);text-decoration:none}
+.post footer a:hover{color:var(--muted);text-decoration:underline}
+
+/* ---------- ブックマーク（カード上） ---------- */
+.bm-tags{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 7px}
+.bm-tags:empty{display:none}
+.bm-tag{display:inline-flex;align-items:center;gap:4px;background:var(--panel2);
+  border:0;border-radius:999px;padding:2px 12px;font-size:12px;font-weight:600;
+  color:var(--muted);cursor:pointer;transition:background .12s,color .12s}
+.bm-tag:hover{color:var(--link);background:var(--accent-soft)}
+.bm-btn{background:none;border:0;cursor:pointer;color:var(--faint);font-size:13px;
+  padding:3px 8px;border-radius:999px;line-height:1;transition:background .12s,color .12s}
+.bm-btn:hover{color:var(--text);background:var(--panel2)}
+.bm-btn.on{color:var(--link)}
+
+.bm-pop{background:var(--panel);border:0;border-radius:var(--r-m);
+  box-shadow:var(--shadow-lg);padding:14px 16px;margin:10px 0 4px;max-width:340px}
+html[data-theme="dark"] .bm-pop{border:1px solid var(--border)}
+.bm-pop h4{margin:0 0 8px;font-size:12.5px;color:var(--muted);font-weight:700;
+  display:flex;justify-content:space-between;align-items:center}
+.bm-pop h4 button{background:none;border:0;color:var(--muted);cursor:pointer;
+  font-size:16px;padding:0 5px;border-radius:6px}
+.bm-pop h4 button:hover{color:var(--text)}
+.bm-pop .list{max-height:180px;overflow-y:auto;margin-bottom:10px}
+.bm-pop label.chk{font-size:13.5px;padding:5px 8px}
+.bm-pop .newrow{display:flex;gap:8px}
+.bm-pop .newrow input{flex:1;background:var(--panel2);border:1px solid transparent;
+  border-radius:999px;padding:6px 14px;font-size:13.5px;color:var(--text);min-width:0}
+.bm-pop .newrow input:focus{outline:none;border-color:var(--link);
+  box-shadow:0 0 0 3px var(--ring)}
+.bm-pop .newrow button{white-space:nowrap;padding:6px 15px;border-radius:999px;
+  background:var(--link);color:#fff;border:0;box-shadow:none;font-weight:600}
+.bm-pop .newrow button:hover{background:var(--link-strong)}
+html[data-theme="dark"] .bm-pop .newrow button{color:#10131a}
+.bm-pop .none{color:var(--faint);font-size:13px;margin:0 0 8px}
+
+/* ---------- 文脈表示（前後の投稿） ---------- */
+.ctx-btn{background:none;border:0;cursor:pointer;color:var(--faint);font-size:12px;
+  padding:3px 8px;border-radius:999px;line-height:1.4;transition:background .12s,color .12s}
+.ctx-btn:hover{color:var(--text);background:var(--panel2)}
+.ctx-modal{z-index:90}                      /* 画像の拡大(100)より下に置く */
+.ctx-box{max-width:720px;background:var(--bg);padding:22px 22px 26px}
+.ctx-box h3{margin-bottom:2px}
+.ctx-box .sub{margin-bottom:14px}
+.ctx-box .post{box-shadow:var(--shadow)}
+html[data-theme="dark"] .ctx-box .post{border:1px solid var(--border)}
+.post.ctx-target{outline:2px solid var(--link);outline-offset:2px}
+.post.ctx-target::after{content:"この投稿";position:absolute;top:-9px;right:14px;
+  background:var(--link);color:#fff;font-size:10.5px;font-weight:700;
+  letter-spacing:.06em;padding:1px 10px;border-radius:999px}
+html[data-theme="dark"] .post.ctx-target::after{color:#10131a}
+.ctx-more{display:block;width:100%;margin:2px 0 16px;padding:10px;cursor:pointer;
+  border:1px dashed var(--border2);border-radius:var(--r-s);background:none;
+  color:var(--link);font-size:13.5px;transition:background .12s}
+#ctx-older{margin:0 0 4px}
+.ctx-more:hover{background:var(--accent-soft)}
+.ctx-more:disabled{color:var(--faint);cursor:default;border-style:solid;
+  border-color:var(--border);background:none}
+@media (pointer:coarse){
+  .ctx-btn{padding:8px 10px;font-size:13px}
+  .ctx-more{padding:13px}
+}
+
+/* ---------- その他 ---------- */
+.sentinel{padding:32px 0;text-align:center;color:var(--faint);font-size:13.5px}
+.empty{border-radius:var(--r-m);padding:32px;color:var(--muted);font-size:15px;
+  margin-top:22px;background:var(--panel);box-shadow:var(--shadow)}
+.empty code{font-family:var(--font-mono);font-size:.9em;background:var(--panel2);
+  padding:2px 8px;border-radius:6px}
+
+.overlay{position:fixed;inset:0;background:var(--scrim);z-index:100;
+  display:none;cursor:zoom-out;
+  backdrop-filter:blur(6px);touch-action:none;overflow:hidden;
+  user-select:none;-webkit-user-select:none}
+.overlay.show{display:block}
+/* 画像はどの環境でも確実に画面中央（絶対配置 + margin:auto） */
+.overlay img{position:absolute;inset:0;margin:auto;
+  max-width:calc(100% - 32px);max-height:calc(100% - 32px);
+  width:auto;height:auto;
+  border-radius:var(--r-m);box-shadow:var(--shadow-lg);cursor:default;
+  touch-action:none;will-change:transform;transform-origin:center center}
+.overlay.zoomed img{cursor:grab;border-radius:0}
+/* 画像タップでボタン類を消せる（もう一度タップで戻る） */
+.ov-nav,.ov-close,.ov-foot{transition:opacity .18s}
+.overlay.ui-hidden .ov-nav,
+.overlay.ui-hidden .ov-close,
+.overlay.ui-hidden .ov-foot{opacity:0;pointer-events:none}
+@media (prefers-reduced-motion:no-preference){
+  .overlay img{transition:opacity .16s}   /* transformは即時（ピンチ追従のため） */
+  .overlay img.fading{opacity:0}
+}
+.ov-close{position:absolute;top:14px;right:14px;z-index:2;
+  width:44px;height:44px;border-radius:50%;border:0;cursor:pointer;
+  background:rgba(20,24,34,.55);color:#fff;font-size:22px;line-height:1;
+  backdrop-filter:blur(4px)}
+.ov-close:hover{background:rgba(20,24,34,.8)}
+.ov-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:2;
+  width:48px;height:64px;border:0;cursor:pointer;border-radius:var(--r-s);
+  background:rgba(20,24,34,.45);color:#fff;font-size:30px;line-height:1;
+  backdrop-filter:blur(4px);display:none}
+.overlay.multi .ov-nav{display:block}
+.ov-nav:hover{background:rgba(20,24,34,.75)}
+.ov-nav.prev{left:14px}
+.ov-nav.next{right:14px}
+@media (pointer:coarse){          /* スマホはスワイプが主役なので矢印は控えめに */
+  .ov-nav{width:38px;height:52px;font-size:24px;background:rgba(20,24,34,.30)}
+}
+.ov-foot{position:absolute;left:0;right:0;bottom:0;z-index:2;
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:14px 20px calc(14px + env(safe-area-inset-bottom));
+  color:#fff;font-size:13px;text-align:center;pointer-events:none;
+  background:linear-gradient(transparent, rgba(10,13,20,.55))}
+.ov-foot:has(#ov-counter:empty):has(#ov-caption:empty){display:none}
+#ov-counter{font-family:var(--font-mono);font-variant-numeric:tabular-nums;
+  font-size:12px;opacity:.9}
+#ov-caption{max-width:min(680px,92vw);overflow:hidden;text-overflow:ellipsis;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  opacity:.85;line-height:1.5}
+
+.modal{position:fixed;inset:0;background:var(--scrim);z-index:110;
+  display:none;place-items:center;padding:20px;backdrop-filter:blur(6px)}
+.modal.show{display:grid}
+.modal-box{background:var(--panel);border:0;border-radius:var(--r-l);
+  max-width:680px;width:100%;max-height:86vh;overflow-y:auto;padding:28px 32px;
+  box-shadow:var(--shadow-lg)}
+html[data-theme="dark"] .modal-box{border:1px solid var(--border)}
+.modal-box h3{font-weight:800;margin:0 0 4px;font-size:20px;letter-spacing:.01em}
+.modal-box .sub{color:var(--muted);font-size:13.5px;margin:0 0 18px}
+.optable{width:100%;border-collapse:collapse;font-size:13.5px}
+.optable td{padding:8px 12px 8px 0;border-bottom:1px solid var(--border);
+  vertical-align:top}
+.optable td:first-child{font-family:var(--font-mono);white-space:nowrap;
+  color:var(--link)}
+.modal-close{float:right;background:none;border:0;color:var(--muted);
+  font-size:20px;cursor:pointer;padding:3px 10px;border-radius:999px}
+.modal-close:hover{color:var(--text);background:var(--panel2)}
+
+.side-scrim{position:fixed;inset:0;background:var(--scrim);z-index:49;
+  opacity:0;pointer-events:none;transition:opacity .2s;backdrop-filter:blur(2px)}
+.side-scrim.show{opacity:1;pointer-events:auto}
+.menu-btn{display:none;position:fixed;left:16px;
+  bottom:calc(16px + env(safe-area-inset-bottom));z-index:60;
+  width:54px;height:54px;border-radius:50%;background:var(--link);color:#fff;
+  border:0;font-size:20px;cursor:pointer;box-shadow:var(--shadow-lg)}
+html[data-theme="dark"] .menu-btn{color:#10131a}
+.search-btn{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));
+  z-index:60;width:46px;height:46px;border-radius:50%;background:var(--panel);
+  border:0;font-size:17px;cursor:pointer;color:var(--muted);box-shadow:var(--shadow-lg)}
+.search-btn:hover{color:var(--text)}
+.search-btn:active{transform:scale(.94)}
+.top-btn{position:fixed;right:18px;bottom:calc(74px + env(safe-area-inset-bottom));z-index:60;
+  width:46px;height:46px;border-radius:50%;background:var(--panel);
+  border:0;font-size:17px;cursor:pointer;color:var(--muted);
+  box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;
+  transition:opacity .2s, transform .2s;transform:translateY(6px)}
+.top-btn.show{opacity:1;pointer-events:auto;transform:none}
+.top-btn:hover{color:var(--text)}
+@media (max-width:920px){
+  .layout{grid-template-columns:1fr}
+  .sidebar{position:fixed;left:0;top:0;bottom:0;width:min(312px,86vw);
+    transform:translateX(-102%);transition:transform .22s;z-index:50;
+    height:100vh;height:100dvh;
+    box-shadow:var(--shadow-lg);background:var(--bg);
+    padding-bottom:calc(48px + env(safe-area-inset-bottom));
+    overscroll-behavior:contain}
+  .sidebar.open{transform:none}
+  .menu-btn{display:block}
+  .main{padding:0 14px 128px}
+  .post{padding:14px 16px 12px 22px}
+  .tabs{max-width:100%;overflow-x:auto;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{padding:8px 16px;white-space:nowrap}
+}
+body.no-scroll{overflow:hidden}
+
+/* ---------- タッチデバイス: 当たり判定と押しやすさ ---------- */
+@media (pointer:coarse){
+  .chk,.mrow,.bm-row,.cal summary{padding-top:9px;padding-bottom:9px}
+  .bm-btn{padding:8px 12px;font-size:15px}
+  .chip{padding:6px 10px 6px 16px}
+  .chip button{font-size:18px;padding:4px 8px}
+  .modal-close{padding:8px 14px}
+  .post header .date{padding:4px 0}
+  .bm-tag{padding:5px 14px}
+  .theme-btn{width:42px;height:42px}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" id="sidebar" aria-label="フィルタと設定">
+    <div class="side-head">
+      <h1 class="wordmark">統合SNSアーカイブ<small>UNIFIED TIMELINE</small></h1>
+      <button class="theme-btn" id="theme-btn" title="ライト / ダーク切り替え" aria-label="テーマ切り替え">&#9789;</button>
+    </div>
+    <div class="side-total" id="side-total">読み込み中…</div>
+
+    <section class="side-sec">
+      <h2>アカウント</h2>
+      <div id="acct-list"></div>
+    </section>
+
+    <section class="side-sec" id="type-sec">
+      <h2>種類</h2>
+      <div id="type-list">
+        <label class="chk"><input type="checkbox" data-type="post" checked>
+          <span class="lbl">投稿</span><span class="n" id="n-post"></span></label>
+        <label class="chk"><input type="checkbox" data-type="repost" checked>
+          <span class="lbl">RT・リノート・ブースト</span><span class="n" id="n-repost"></span></label>
+        <label class="chk"><input type="checkbox" id="chk-reply" checked>
+          <span class="lbl">返信を含む</span></label>
+      </div>
+    </section>
+
+    <section class="side-sec">
+      <h2>ブックマーク</h2>
+      <div id="bm-list"></div>
+    </section>
+
+    <section class="side-sec">
+      <h2>表示</h2>
+      <div class="side-btns">
+        <select class="btn" id="order-sel" aria-label="並び順">
+          <option value="desc">新しい順</option>
+          <option value="asc">古い順</option>
+        </select>
+        <button class="btn" id="btn-random" title="ランダムに50件表示">&#127922; ランダム</button>
+        <button class="btn" id="btn-today" title="過去の同じ日付の投稿を表示">この日の過去</button>
+      </div>
+    </section>
+
+    <section class="side-sec">
+      <h2>月別</h2>
+      <div class="cal" id="cal"></div>
+      <div class="legend" id="legend"></div>
+    </section>
+  </aside>
+
+  <div class="main" role="main">
+    <div class="searchwrap">
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="posts" role="tab" aria-selected="true">
+          &#128221; 投稿・RT <span class="n" id="tab-n-posts"></span></button>
+        <button class="tab" data-tab="likes" role="tab" aria-selected="false">
+          &#9825; いいね・お気に入り <span class="n" id="tab-n-likes"></span></button>
+      </div>
+      <div class="searchbar">
+        <input id="q" type="search" aria-label="投稿を検索"
+               placeholder="検索　例: 猫 has:image since:2020  （/ でフォーカス）"
+               autocomplete="off" spellcheck="false">
+        <button class="btn" id="btn-search">検索</button>
+        <button class="btn" id="btn-help" title="検索コマンド一覧" aria-label="検索コマンド一覧のヘルプ">?</button>
+      </div>
+      <div class="chips" id="chips"></div>
+    </div>
+
+    <div class="meta-line" id="meta-line" aria-live="polite"></div>
+    <div id="results"></div>
+    <div class="sentinel" id="sentinel" aria-live="polite"></div>
+  </div>
+</div>
+
+<div class="side-scrim" id="side-scrim" aria-hidden="true"></div>
+<button class="menu-btn" id="menu-btn" aria-label="メニューを開く" aria-expanded="false">&#9776;</button>
+<button class="top-btn" id="top-btn" aria-label="いちばん上へ" title="いちばん上へ">&#8593;</button>
+<button class="search-btn" id="search-btn" aria-label="検索欄へ移動" title="検索">&#128269;</button>
+
+<div class="overlay" id="overlay" role="dialog" aria-label="画像の拡大表示（上下スワイプまたはEscで閉じる）">
+  <button class="ov-close" id="ov-close" aria-label="閉じる">&#215;</button>
+  <button class="ov-nav prev" id="ov-prev" aria-label="前の画像">&#8249;</button>
+  <img id="overlay-img" alt="拡大画像">
+  <button class="ov-nav next" id="ov-next" aria-label="次の画像">&#8250;</button>
+  <div class="ov-foot">
+    <span id="ov-counter" aria-live="polite"></span>
+    <span id="ov-caption"></span>
+  </div>
+</div>
+
+<div class="modal ctx-modal" id="ctx-modal" role="dialog" aria-modal="true" aria-label="前後の投稿">
+  <div class="modal-box ctx-box">
+    <button class="modal-close" id="ctx-close" aria-label="閉じる">&#215;</button>
+    <h3>&#9202; 前後の投稿</h3>
+    <p class="sub" id="ctx-sub"></p>
+    <button class="ctx-more" id="ctx-newer">&#9650; これより後（新しい側）を10件</button>
+    <div id="ctx-list"></div>
+    <button class="ctx-more" id="ctx-older">&#9660; これより前（古い側）を10件</button>
+  </div>
+</div>
+
+<div class="modal" id="help-modal" role="dialog" aria-modal="true" aria-label="検索コマンド一覧">
+  <div class="modal-box">
+    <button class="modal-close" id="help-close" aria-label="閉じる">&#215;</button>
+    <h3>検索コマンド</h3>
+    <p class="sub">スペース区切りはAND。タブ・サイドバーのフィルタとも同時に絞り込まれます。</p>
+    <table class="optable">
+      <tr><td>ねこ 写真</td><td>両方の語を含む投稿（AND）。画像のalt説明文も検索対象</td></tr>
+      <tr><td>ねこ OR いぬ</td><td>どちらかを含む（<code>ねこ OR いぬ かわいい</code> = (ねこ∨いぬ)∧かわいい）</td></tr>
+      <tr><td>"おはようございます"</td><td>フレーズをそのまま検索</td></tr>
+      <tr><td>-ラーメン</td><td>その語を含む投稿を除外</td></tr>
+      <tr><td>service:twitter</td><td>サービスで絞る（twitter / misskey / bluesky / mastodon、<code>-service:</code>で除外可）</td></tr>
+      <tr><td>account:misskey.io</td><td>アカウント名（部分一致）で絞る</td></tr>
+      <tr><td>from:username</td><td>RT・いいねの元投稿者で絞る</td></tr>
+      <tr><td>since:2020-01-01</td><td>この日以降（<code>since:2020</code> <code>since:2020-04</code> も可）</td></tr>
+      <tr><td>until:2021-06-30</td><td>この日まで</td></tr>
+      <tr><td>date:2019-05-01</td><td>その日だけ。<code>date:05-01</code> なら全年の5月1日</td></tr>
+      <tr><td>has:image</td><td>画像つき（<code>has:media</code> / <code>has:video</code> / <code>has:link</code>）</td></tr>
+      <tr><td>type:like</td><td>種類で絞る（post / repost / like / reply）。<code>is:reply</code> <code>-is:reply</code> も可</td></tr>
+      <tr><td>label:大事な話</td><td>付けたブックマーク（ラベル）で絞る。<code>label:*</code> で何かラベルの付いたもの全部、<code>-label:</code> で除外</td></tr>
+      <tr><td>has:bookmark</td><td>何かしらブックマークした投稿（<code>label:*</code> と同じ）</td></tr>
+      <tr><td>sort:asc</td><td>古い順（<code>sort:random</code> でランダム）</td></tr>
+    </table>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = (s, el=document) => el.querySelector(s);
+const SVC = {twitter:{cls:"tw", label:"Twitter"},
+             misskey:{cls:"mk", label:"Misskey"},
+             bluesky:{cls:"bs", label:"Bluesky"},
+             mastodon:{cls:"md", label:"Mastodon"}};
+const state = {
+  q:"", tab:"posts",
+  accounts:new Set(), allAccounts:[], types:new Set(["post","repost"]),
+  replies:true, month:null, order:"desc", label:null, allLabels:[],
+  page:1, total:0, loading:false, done:false, seq:0
+};
+
+/* ---------------- テーマ ---------------- */
+function effectiveTheme(){
+  const t = document.documentElement.dataset.theme;
+  if(t === "light" || t === "dark") return t;
+  return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+function updateThemeBtn(){
+  $("#theme-btn").textContent = effectiveTheme() === "dark" ? "\u263E" : "\u2600";
+}
+$("#theme-btn").addEventListener("click", () => {
+  const next = effectiveTheme() === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try{ localStorage.setItem("theme", next); }catch(e){}
+  updateThemeBtn();
+});
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", updateThemeBtn);
+updateThemeBtn();
+
+/* ---------------- ユーティリティ ---------------- */
+const esc = s => String(s ?? "").replace(/[&<>"']/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function linkify(text){
+  const urlRe = /https?:\/\/[^\s<>"'\u3000-\u303f\uff00-\uff0f]+/g;
+  let out = "", last = 0, m;
+  while((m = urlRe.exec(text))){
+    out += hashtagize(esc(text.slice(last, m.index)));
+    const u = m[0];
+    out += `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a>`;
+    last = m.index + u.length;
+  }
+  out += hashtagize(esc(text.slice(last)));
+  return out.replace(/\n/g, "<br>");
+}
+function hashtagize(escaped){
+  return escaped.replace(/(^|[\s\u3000(（>])#([^\s\u3000#<]{1,50})/g,
+    (all, pre, tag) => `${pre}<a href="#" class="hashtag" data-tag="${tag}">#${tag}</a>`);
+}
+
+function fmtDate(p){
+  if(!p.created_local) return "日付不明";
+  const d = new Date(p.created_local);
+  const w = "日月火水木金土"[d.getDay()] || "";
+  const s = p.created_local;
+  let out = `${s.slice(0,4)}/${s.slice(5,7)}/${s.slice(8,10)}(${w}) ${s.slice(11,16)}`;
+  if(p.extra && p.extra.date_estimated) out += " ごろ";
+  return out;
+}
+
+function mediaHTML(p){
+  const ms = p.media || [];
+  if(!ms.length) return "";
+  let inner = "";
+  for(const m of ms){
+    const src = m.url || m.remote_url;
+    const alt = esc(m.alt || "");
+    if(!src && m.kind !== "remote_video"){ continue; }
+    if(m.kind === "image"){
+      inner += `<img loading="lazy" src="${esc(src)}" alt="${alt}" title="${alt}" data-full="${esc(src)}">`;
+    }else if(m.kind === "gifv"){
+      inner += `<video autoplay muted loop playsinline src="${esc(src)}" title="GIF"></video>`;
+    }else if(m.kind === "video"){
+      inner += `<video controls preload="metadata" src="${esc(src)}"></video>`;
+    }else if(m.kind === "remote_video"){
+      const thumb = m.url;
+      if(thumb){
+        inner += `<a class="vlink" href="${esc(p.url || m.remote_url)}" target="_blank" rel="noopener" title="動画は元の投稿で再生できます"><img loading="lazy" src="${esc(thumb)}" alt="${alt}"></a>`;
+      }else{
+        inner += `<a class="filelink" href="${esc(p.url || m.remote_url)}" target="_blank" rel="noopener">&#9654; 動画（元の投稿で再生）</a>`;
+      }
+    }else if(m.kind === "audio"){
+      inner += `<audio controls preload="none" src="${esc(src)}"></audio>`;
+    }else{
+      inner += `<a class="filelink" href="${esc(src)}" target="_blank" rel="noopener">&#128206; 添付ファイル</a>`;
+    }
+  }
+  if(!inner) return "";
+  const n = Math.min(ms.length, 4);
+  return `<div class="media" data-n="${n}">${inner}</div>`;
+}
+
+function bmTagsHTML(labels){
+  return (labels || []).map(l =>
+    `<button class="bm-tag" data-bmfilter="${esc(l)}" title="このラベルで絞り込む">&#128278; ${esc(l)}</button>`).join("");
+}
+
+function postCard(p){
+  const svc = SVC[p.service] || {cls:"", label:p.service};
+  const el = document.createElement("article");
+  el.className = `post s-${p.service}`;
+  const author = p.author_handle
+    ? `<b>${esc(p.author_handle)}</b>${p.author_name ? " (" + esc(p.author_name) + ")" : ""}`
+    : "<b>—</b>";
+  let badge = "";
+  if(p.type === "repost"){
+    badge = `<div class="badge" ${p.extra.rt_truncated ? 'title="RT本文はTwitterアーカイブの仕様で短縮されている場合があります"' : ""}>&#128257; リポスト — ${author}</div>`;
+  }else if(p.type === "like"){
+    const r = p.extra && p.extra.reaction ? esc(p.extra.reaction) : "&#9825;";
+    badge = `<div class="badge">${r} いいね — ${author}</div>`;
+  }
+  const foot = [];
+  if(p.extra){
+    if(p.extra.visibility === "followers") foot.push("&#128274; フォロワー限定");
+    if(p.extra.visibility === "specified") foot.push("&#9993; ダイレクト");
+    if(p.extra.visibility === "home") foot.push("&#127968; ホーム");
+    if(p.extra.fav_count) foot.push(`&#9825;${p.extra.fav_count}`);
+    if(p.extra.rt_count) foot.push(`&#8635;${p.extra.rt_count}`);
+    if(p.extra.quote_of) foot.push(`<a href="${esc(p.extra.quote_of)}" target="_blank" rel="noopener">引用元 &#8599;</a>`);
+    if(p.extra.renote_of) foot.push(`<a href="${esc(p.extra.renote_of)}" target="_blank" rel="noopener">リノート元 &#8599;</a>`);
+  }
+  if(p.url) foot.push(`<a href="${esc(p.url)}" target="_blank" rel="noopener">元の投稿 &#8599;</a>`);
+  const hasBm = (p.labels || []).length > 0;
+  foot.push(`<button class="bm-btn${hasBm ? " on" : ""}" data-bm="${p.id}" title="ブックマーク（ラベルを付ける）" aria-label="ブックマーク（ラベルを付ける）">&#128278;${hasBm ? "" : " ラベル"}</button>`);
+  foot.push(`<button class="ctx-btn" data-ctx="${p.id}" title="この投稿の前後を時系列で表示" aria-label="この投稿の前後を表示">&#9202; 前後</button>`);
+  el.innerHTML = `
+    <header>
+      <span class="pill ${svc.cls}">${svc.label}</span>
+      <span class="acct">${esc(p.account)}</span>
+      ${p.is_reply ? '<span class="tag-reply">&#8617; 返信</span>' : ""}
+      <a class="date" href="${esc(p.url || "#")}" target="_blank" rel="noopener">${fmtDate(p)}</a>
+    </header>
+    ${badge}
+    <div class="bm-tags" data-bmtags="${p.id}">${bmTagsHTML(p.labels)}</div>
+    <div class="text">${linkify(p.text || "")}</div>
+    ${mediaHTML(p)}
+    ${foot.length ? `<footer>${foot.join(" ")}</footer>` : ""}`;
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("in")));
+  return el;
+}
+
+/* ---------------- API ---------------- */
+function currentTypes(){
+  if(state.tab === "likes") return ["like"];
+  return [...state.types];  // post / repost のうちチェック済み
+}
+function buildParams(page){
+  const p = new URLSearchParams();
+  p.set("q", state.q);
+  p.set("page", page);
+  if(state.accounts.size && state.accounts.size < state.allAccounts.length)
+    p.set("accounts", [...state.accounts].join("\n"));
+  p.set("types", currentTypes().join(","));
+  p.set("replies", (state.tab === "likes" || state.replies) ? "1" : "0");
+  if(state.month) p.set("month", state.month);
+  if(state.label) p.set("label", state.label);
+  p.set("order", state.order);
+  return p;
+}
+
+async function doSearch(reset){
+  if(reset){
+    state.page = 1; state.done = false;
+    $("#results").innerHTML = "";
+    closeBmPop();
+    if(window.scrollY > 300)                    // 下の方を見ていたら先頭に戻す
+      window.scrollTo({top:0, behavior:"instant" in document.body.style ? "instant" : "auto"});
+  }else if(state.loading || state.done){
+    return;
+  }
+  if(state.tab === "posts" && state.types.size === 0){
+    $("#results").innerHTML = `<div class="empty">「種類」のチェックがすべて外れています。左のサイドバーで表示したい種類を選んでください。</div>`;
+    $("#meta-line").innerHTML = ""; $("#sentinel").textContent = "";
+    state.done = true; return;
+  }
+  const seq = ++state.seq;      // 進行中の古い読み込みはここで無効化される
+  state.loading = true;
+  $("#sentinel").textContent = "読み込み中…";
+  try{
+    const res = await fetch("/api/posts?" + buildParams(state.page));
+    const data = await res.json();
+    if(seq !== state.seq) return;
+    if(data.total >= 0) state.total = data.total;   // 2ページ目以降は前回値を使う
+    const frag = document.createDocumentFragment();
+    for(const p of data.posts) frag.appendChild(postCard(p));
+    $("#results").appendChild(frag);
+    if(state.page === 1){
+      renderMeta(data);
+      if(data.histogram) renderCalendar(data.histogram);
+      if(data.total === 0) renderEmpty();
+    }
+    state.page++;
+    const shown = $("#results").children.length;
+    if(shown >= state.total || data.posts.length === 0 || state.order === "random")
+      state.done = true;
+    $("#sentinel").textContent = state.done
+      ? (state.total ? "— 以上 —" : "") : "";
+  }catch(e){
+    if(seq === state.seq) $("#sentinel").textContent = "読み込みエラー: " + e;
+  }finally{
+    if(seq === state.seq){
+      state.loading = false;
+      maybeLoadMore();
+    }
+  }
+}
+
+function renderMeta(data){
+  const parts = [`<b>${data.total.toLocaleString()}</b> 件`];
+  // アカウント別の内訳（サービスの色付き）。多アカウント時も折り返して表示される
+  for(const a of (data.account_counts || [])){
+    const cls = (SVC[a.service] || {}).cls || "";
+    parts.push(`<span class="svc-n ${cls}" title="${esc(a.service)}">${esc(a.account)} ${a.c.toLocaleString()}</span>`);
+  }
+  if(state.order === "random")
+    parts.push(`<button class="btn" id="btn-reroll" style="padding:2px 10px;font-size:12px">&#127922; もう一度</button>`);
+  $("#meta-line").innerHTML = parts.join(" ");
+  const rr = $("#btn-reroll");
+  if(rr) rr.onclick = () => doSearch(true);
+}
+
+function renderEmpty(){
+  const anyData = state.allAccounts.length > 0;
+  $("#results").innerHTML = anyData
+    ? `<div class="empty">条件に一致する${state.tab === "likes" ? "いいね" : "投稿"}はありませんでした。検索語やフィルタ、タブの切り替えを確認してみてください。</div>`
+    : `<div class="empty">まだデータがありません。<br><br>
+       1. <code>config.json</code> を設定<br>
+       2. <code>sync_all.bat</code>（または各 sync_*.bat）を実行して取り込み<br>
+       3. このページを再読み込み<br><br>詳しくは README.md をどうぞ。</div>`;
+}
+
+/* ---------------- サイドバー ---------------- */
+async function loadMeta(){
+  const res = await fetch("/api/meta");
+  const meta = await res.json();
+  state.allAccounts = meta.accounts.map(a => a.service + "|" + a.account);
+  state.accounts = new Set(state.allAccounts);
+  const list = $("#acct-list");
+  list.innerHTML = "";
+  for(const a of meta.accounts){
+    const key = a.service + "|" + a.account;
+    const def = SVC[a.service] || {cls:"", label:a.service};
+    const lab = document.createElement("label");
+    lab.className = "chk";
+    lab.innerHTML = `<input type="checkbox" checked>
+      <span class="dot" style="background:var(--${def.cls || "border2"})"></span>
+      <span class="lbl" title="${esc(a.account)}">${esc(a.account)}</span>
+      <span class="n">${a.c.toLocaleString()}</span>`;
+    lab.querySelector("input").addEventListener("change", ev => {
+      ev.target.checked ? state.accounts.add(key) : state.accounts.delete(key);
+      doSearch(true);
+    });
+    list.appendChild(lab);
+  }
+  $("#n-post").textContent = meta.totals.post.toLocaleString();
+  $("#n-repost").textContent = meta.totals.repost.toLocaleString();
+  $("#tab-n-posts").textContent =
+    (meta.totals.post + meta.totals.repost).toLocaleString();
+  $("#tab-n-likes").textContent = meta.totals.like.toLocaleString();
+  const r = meta.range || {};
+  $("#side-total").textContent = meta.totals.all
+    ? `全 ${meta.totals.all.toLocaleString()} 件 · ${ (r.min||"").slice(0,10) } 〜 ${ (r.max||"").slice(0,10) }`
+    : "データ未取り込み";
+  renderLegend(meta.accounts);
+}
+
+function renderLegend(accounts){
+  const seen = [...new Set(accounts.map(a => a.service))];
+  const el = $("#legend");
+  el.innerHTML = "";
+  const order = Object.keys(SVC).filter(s => seen.includes(s))
+    .concat(seen.filter(s => !SVC[s]));
+  for(const s of (order.length ? order : Object.keys(SVC))){
+    const def = SVC[s] || {cls:"", label:s};
+    el.insertAdjacentHTML("beforeend",
+      `<span><i class="dot" style="background:var(--${def.cls || "border2"})"></i>${esc(def.label)}</span>`);
+  }
+}
+
+function renderCalendar(hist){
+  // hist: [{ym, service, c}]
+  const byYm = new Map();
+  for(const h of hist){
+    if(!byYm.has(h.ym)) byYm.set(h.ym, {total:0});
+    const o = byYm.get(h.ym);
+    o[h.service] = (o[h.service] || 0) + h.c;
+    o.total += h.c;
+  }
+  let maxM = 1;
+  for(const [ym, o] of byYm) if(ym !== "none") maxM = Math.max(maxM, o.total);
+  const years = new Map();
+  let noneCount = 0;
+  for(const [ym, o] of byYm){
+    if(ym === "none"){ noneCount = o.total; continue; }
+    const y = ym.slice(0,4);
+    if(!years.has(y)) years.set(y, []);
+    years.get(y).push([ym, o]);
+  }
+  const cal = $("#cal");
+  cal.innerHTML = "";
+  const sortedYears = [...years.keys()].sort().reverse();
+  sortedYears.forEach((y, yi) => {
+    const rows = years.get(y).sort((a,b)=>b[0].localeCompare(a[0]));
+    const ytotal = rows.reduce((s,[,o])=>s+o.total,0);
+    const det = document.createElement("details");
+    const openYear = state.month ? state.month.startsWith(y) : yi === 0;
+    if(openYear) det.open = true;
+    det.innerHTML = `<summary><span class="tri">&#9654;</span>
+      <span class="yr">${y}年</span><span class="n">${ytotal.toLocaleString()}</span></summary>`;
+    for(const [ym, o] of rows){
+      const btn = document.createElement("button");
+      btn.className = "mrow" + (state.month === ym ? " active" : "");
+      const segs = Object.keys(SVC).map(s => {
+        const w = (o[s] || 0) / maxM * 100;
+        return w ? `<i class="${SVC[s].cls}" style="width:${w.toFixed(2)}%"></i>` : "";
+      }).join("");
+      btn.innerHTML = `<span class="m">${ym.slice(5)}月</span>
+        <span class="bar">${segs}</span><span class="n">${o.total.toLocaleString()}</span>`;
+      btn.addEventListener("click", () => {
+        state.month = (state.month === ym) ? null : ym;
+        renderChips(); doSearch(true);
+      });
+      det.appendChild(btn);
+    }
+    cal.appendChild(det);
+  });
+  if(noneCount){
+    const btn = document.createElement("button");
+    btn.className = "mrow" + (state.month === "none" ? " active" : "");
+    btn.innerHTML = `<span class="m" style="width:auto">日付なし</span>
+      <span class="bar"></span><span class="n">${noneCount.toLocaleString()}</span>`;
+    btn.addEventListener("click", () => {
+      state.month = (state.month === "none") ? null : "none";
+      renderChips(); doSearch(true);
+    });
+    cal.appendChild(btn);
+  }
+  if(!byYm.size) cal.innerHTML = '<div class="side-total">（結果なし）</div>';
+}
+
+function renderChips(){
+  const chips = $("#chips");
+  chips.innerHTML = "";
+  if(state.label){
+    const name = state.label === "*" ? "すべてのブックマーク" : state.label;
+    const c = document.createElement("span");
+    c.className = "chip";
+    c.innerHTML = `&#128278; ${esc(name)} <button aria-label="解除">&#215;</button>`;
+    c.querySelector("button").onclick = () => {
+      state.label = null; loadLabels(); renderChips(); doSearch(true);
+    };
+    chips.appendChild(c);
+  }
+  if(state.month){
+    const label = state.month === "none" ? "日付なし"
+      : `${state.month.slice(0,4)}年${parseInt(state.month.slice(5),10)}月`;
+    const c = document.createElement("span");
+    c.className = "chip";
+    c.innerHTML = `&#128197; ${label} <button aria-label="解除">&#215;</button>`;
+    c.querySelector("button").onclick = () => {
+      state.month = null; renderChips(); doSearch(true);
+    };
+    chips.appendChild(c);
+  }
+}
+
+/* ---------------- ブックマーク ---------------- */
+async function loadLabels(){
+  try{
+    const d = await (await fetch("/api/labels")).json();
+    state.allLabels = d.labels || [];
+    const list = $("#bm-list");
+    list.innerHTML = "";
+    if(!state.allLabels.length){
+      list.innerHTML = `<div class="bm-hint">投稿の &#128278; ボタンから、<br>「お気に入り」「大事な話」など<br>自由な名前でラベルを付けられます。</div>`;
+      if(state.label){ state.label = null; renderChips(); doSearch(true); }
+      return;
+    }
+    const allRow = document.createElement("button");
+    allRow.className = "bm-row" + (state.label === "*" ? " active" : "");
+    allRow.innerHTML = `<span class="ic">&#128278;</span><span class="lbl">すべてのブックマーク</span>
+      <span class="n">${d.total_posts.toLocaleString()}</span>`;
+    allRow.onclick = () => setLabelFilter("*");
+    list.appendChild(allRow);
+    for(const l of state.allLabels){
+      const row = document.createElement("button");
+      row.className = "bm-row" + (state.label === l.label ? " active" : "");
+      row.innerHTML = `<span class="ic">&#127991;</span>
+        <span class="lbl" title="${esc(l.label)}">${esc(l.label)}</span>
+        <span class="n">${l.c.toLocaleString()}</span>`;
+      row.onclick = () => setLabelFilter(l.label);
+      list.appendChild(row);
+    }
+  }catch(e){ console.error(e); }
+}
+
+function setLabelFilter(label){
+  state.label = (state.label === label) ? null : label;
+  loadLabels(); renderChips(); doSearch(true);
+}
+
+/* ポップオーバー（使い回しの1個） */
+const bmPop = document.createElement("div");
+bmPop.className = "bm-pop";
+bmPop.setAttribute("role", "dialog");
+bmPop.setAttribute("aria-label", "ブックマークのラベル編集");
+bmPop.style.display = "none";
+let bmPopPostId = null;
+
+function openBmPop(btn){
+  const pid = +btn.dataset.bm;
+  if(bmPopPostId === pid && bmPop.style.display !== "none"){ closeBmPop(); return; }
+  bmPopPostId = pid;
+  const current = new Set(
+    [...(btn.closest(".post").querySelector("[data-bmtags]")?.querySelectorAll(".bm-tag") || [])]
+      .map(el => el.dataset.bmfilter));
+  const names = [...new Set([...state.allLabels.map(l => l.label), ...current])];
+  let listHTML = names.map(name => `
+    <label class="chk"><input type="checkbox" data-bmlabel="${esc(name)}" ${current.has(name) ? "checked" : ""}>
+      <span class="lbl">${esc(name)}</span></label>`).join("");
+  if(!names.length) listHTML = `<p class="none">まだラベルがありません。下の欄から作成できます。</p>`;
+  bmPop.innerHTML = `
+    <h4>&#128278; ブックマーク <button aria-label="閉じる" data-bmclose>&#215;</button></h4>
+    <div class="list">${listHTML}</div>
+    <div class="newrow">
+      <input type="text" maxlength="50" placeholder="新しいラベル名（例: 大事な話）">
+      <button class="btn">追加</button>
+    </div>`;
+  btn.closest(".post").appendChild(bmPop);
+  bmPop.style.display = "block";
+  const inp = bmPop.querySelector("input[type=text]");
+  const addBtn = bmPop.querySelector(".newrow button");
+  const doAdd = () => {
+    const name = inp.value.trim().slice(0, 50);
+    if(name){ toggleBookmark(pid, name, true); inp.value = ""; }
+  };
+  addBtn.onclick = doAdd;
+  inp.onkeydown = e => { if(e.key === "Enter"){ e.preventDefault(); doAdd(); } };
+  bmPop.querySelector("[data-bmclose]").onclick = closeBmPop;
+  bmPop.querySelectorAll("input[data-bmlabel]").forEach(cb => {
+    cb.onchange = () => toggleBookmark(pid, cb.dataset.bmlabel, cb.checked);
+  });
+  inp.focus();
+}
+
+function closeBmPop(){
+  bmPop.style.display = "none";
+  bmPop.remove();
+  bmPopPostId = null;
+}
+
+async function toggleBookmark(pid, label, on){
+  try{
+    const r = await fetch("/api/bookmark", {method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({post_id: pid, label, on})});
+    const d = await r.json();
+    if(!r.ok){ alert(d.error || "ブックマークの更新に失敗しました"); return; }
+    // カード表示とサイドバーを更新
+    document.querySelectorAll(`[data-bmtags="${pid}"]`).forEach(tags => {
+      tags.innerHTML = bmTagsHTML(d.labels);
+    });
+    document.querySelectorAll(`.bm-btn[data-bm="${pid}"]`).forEach(btn => {
+      btn.classList.toggle("on", d.labels.length > 0);
+      btn.innerHTML = "\u{1F516}" + (d.labels.length ? "" : " ラベル");
+    });
+    await loadLabels();
+    if(bmPopPostId === pid && bmPop.style.display !== "none"){
+      const cb = [...bmPop.querySelectorAll("input[data-bmlabel]")]
+        .find(x => x.dataset.bmlabel === label);
+      if(cb) cb.checked = on;
+      else if(on){                     // 新規ラベル → チェック済みで一覧に追加
+        const lab = document.createElement("label");
+        lab.className = "chk";
+        lab.innerHTML = `<input type="checkbox" data-bmlabel="${esc(label)}" checked>
+          <span class="lbl">${esc(label)}</span>`;
+        lab.querySelector("input").onchange = ev =>
+          toggleBookmark(pid, label, ev.target.checked);
+        const none = bmPop.querySelector(".none");
+        if(none) none.remove();
+        bmPop.querySelector(".list").appendChild(lab);
+      }
+    }
+    // ラベル絞り込み表示中に外した場合は再検索で整合を取る
+    if(state.label && !on &&
+       (state.label === "*" ? d.labels.length === 0 : state.label === label)){
+      doSearch(true);
+    }
+  }catch(e){
+    alert("ブックマークの更新に失敗しました: " + e);
+  }
+}
+
+/* ---------------- タブ ---------------- */
+document.querySelectorAll(".tab").forEach(t => {
+  t.addEventListener("click", () => {
+    if(state.tab === t.dataset.tab) return;
+    state.tab = t.dataset.tab;
+    document.querySelectorAll(".tab").forEach(x => {
+      const on = x === t;
+      x.classList.toggle("active", on);
+      x.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    $("#type-sec").classList.toggle("disabled", state.tab === "likes");
+    doSearch(true);
+  });
+});
+
+/* ---------------- イベント ---------------- */
+function runQuery(){
+  state.q = $("#q").value;
+  doSearch(true);
+}
+let searchTimer = null;
+function scheduleSearch(){
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(runQuery, 350);   // 入力が落ち着いてから検索
+}
+$("#btn-search").addEventListener("click", runQuery);
+$("#q").addEventListener("keydown", e => {
+  if(e.key === "Enter"){
+    e.preventDefault();
+    clearTimeout(searchTimer);
+    runQuery();
+    e.target.blur();        // スマホのキーボードを畳む
+  }
+});
+$("#q").addEventListener("input", scheduleSearch);   // 打鍵に追従（デバウンス付き）
+document.addEventListener("keydown", e => {
+  if(e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){
+    e.preventDefault(); $("#q").focus();
+  }
+  if($("#overlay").classList.contains("show")){
+    if(e.key === "ArrowLeft"){ showLb(lb.idx - 1); return; }
+    if(e.key === "ArrowRight"){ showLb(lb.idx + 1); return; }
+    if(e.key === "Escape"){ closeLightbox(); return; }
+  }
+  if(e.key === "Escape"){
+    closeBmPop();
+    closeLightbox();
+    closeCtx();
+    setSidebar(false);
+    $("#help-modal").classList.remove("show");
+  }
+});
+document.querySelectorAll("#type-list input[data-type]").forEach(cb => {
+  cb.addEventListener("change", () => {
+    cb.checked ? state.types.add(cb.dataset.type) : state.types.delete(cb.dataset.type);
+    doSearch(true);
+  });
+});
+$("#chk-reply").addEventListener("change", e => {
+  state.replies = e.target.checked; doSearch(true);
+});
+$("#order-sel").addEventListener("change", e => {
+  state.order = e.target.value; doSearch(true);
+});
+$("#btn-random").addEventListener("click", () => {
+  state.order = "random"; doSearch(true);
+});
+$("#btn-today").addEventListener("click", () => {
+  const now = new Date();
+  const md = String(now.getMonth()+1).padStart(2,"0") + "-" +
+             String(now.getDate()).padStart(2,"0");
+  $("#q").value = "date:" + md;
+  state.month = null; renderChips(); runQuery();
+});
+function onPostClick(e){
+  const ctxBtn = e.target.closest(".ctx-btn[data-ctx]");
+  if(ctxBtn){ openContext(+ctxBtn.dataset.ctx); return; }
+  const bmBtn = e.target.closest(".bm-btn[data-bm]");
+  if(bmBtn){ openBmPop(bmBtn); return; }
+  const bmTag = e.target.closest(".bm-tag[data-bmfilter]");
+  if(bmTag){
+    closeCtx();
+    setLabelFilter(bmTag.dataset.bmfilter);
+    window.scrollTo({top:0});
+    return;
+  }
+  if(!e.target.closest(".bm-pop") && bmPop.style.display !== "none") closeBmPop();
+  const tag = e.target.closest("a.hashtag");
+  if(tag){
+    e.preventDefault();
+    closeCtx();
+    $("#q").value = "#" + tag.dataset.tag;
+    runQuery();
+    window.scrollTo({top:0});
+    return;
+  }
+  const img = e.target.closest(".media img[data-full]");
+  if(img){
+    // 同じ投稿内の画像をまとめてギャラリーとして開く
+    const all = [...img.closest(".media").querySelectorAll("img[data-full]")];
+    openLightbox(all.map(el => ({src: el.dataset.full, alt: el.alt || ""})),
+                 all.indexOf(img));
+  }
+}
+$("#results").addEventListener("click", onPostClick);
+$("#ctx-list").addEventListener("click", onPostClick);
+
+/* ---------------- 文脈表示（前後の投稿） ---------------- */
+const ctx = {top: null, bottom: null, id: null};
+
+async function openContext(id){
+  ctx.id = id;
+  const box = document.querySelector(".ctx-box");
+  $("#ctx-list").innerHTML = "";
+  $("#ctx-sub").textContent = "読み込み中…";
+  setBtn("#ctx-newer", true, "▲ これより後（新しい側）を10件");
+  setBtn("#ctx-older", true, "▼ これより前（古い側）を10件");
+  $("#ctx-modal").classList.add("show");
+  document.body.classList.add("no-scroll");
+  try{
+    const d = await (await fetch(`/api/context?id=${id}`)).json();
+    if(d.error){ $("#ctx-sub").textContent = d.error; return; }
+    $("#ctx-sub").textContent = `${d.target.account} の時系列（新しい順）`;
+    const list = $("#ctx-list");
+    list.innerHTML = "";
+    for(const p of d.newer) list.appendChild(postCard(p));
+    const tEl = postCard(d.target);
+    tEl.classList.add("ctx-target");
+    list.appendChild(tEl);
+    for(const p of d.older) list.appendChild(postCard(p));
+    ctx.top = cursorOf(d.newer[0] || d.target);
+    ctx.bottom = cursorOf(d.older[d.older.length - 1] || d.target);
+    if(!d.newer.length) setBtn("#ctx-newer", false, "これより新しい投稿はありません");
+    if(!d.older.length) setBtn("#ctx-older", false, "これより古い投稿はありません");
+    // 対象投稿が見える位置までスクロール
+    requestAnimationFrame(() => {
+      box.scrollTop = tEl.offsetTop - box.clientHeight / 2 + tEl.offsetHeight / 2;
+    });
+  }catch(err){
+    $("#ctx-sub").textContent = "読み込みに失敗しました: " + err;
+  }
+}
+function cursorOf(p){ return `${p.created_local},${p.id}`; }
+function setBtn(sel, on, text){
+  const b = $(sel);
+  b.disabled = !on;
+  b.textContent = text;
+}
+
+async function loadCtx(dir){
+  const cur = dir === "newer" ? ctx.top : ctx.bottom;
+  if(!cur) return;
+  const box = document.querySelector(".ctx-box");
+  const d = await (await fetch(
+    `/api/context?id=${ctx.id}&dir=${dir}&cursor=${encodeURIComponent(cur)}`)).json();
+  const posts = d.posts || [];
+  const list = $("#ctx-list");
+  if(dir === "newer"){
+    if(!posts.length){ setBtn("#ctx-newer", false, "これより新しい投稿はありません"); return; }
+    const before = box.scrollHeight;
+    const frag = document.createDocumentFragment();
+    for(const p of posts) frag.appendChild(postCard(p));
+    list.prepend(frag);
+    box.scrollTop += box.scrollHeight - before;   // 見ていた位置を保つ
+    ctx.top = cursorOf(posts[0]);
+  }else{
+    if(!posts.length){ setBtn("#ctx-older", false, "これより古い投稿はありません"); return; }
+    for(const p of posts) list.appendChild(postCard(p));
+    ctx.bottom = cursorOf(posts[posts.length - 1]);
+  }
+}
+function closeCtx(){
+  if(!$("#ctx-modal").classList.contains("show")) return;
+  $("#ctx-modal").classList.remove("show");
+  document.body.classList.remove("no-scroll");
+  closeBmPop();
+}
+$("#ctx-newer").addEventListener("click", () => loadCtx("newer"));
+$("#ctx-older").addEventListener("click", () => loadCtx("older"));
+$("#ctx-close").addEventListener("click", closeCtx);
+$("#ctx-modal").addEventListener("click", e => {
+  if(e.target === $("#ctx-modal")) closeCtx();   // 背景クリックで閉じる
+});
+
+/* ---------------- ライトボックス（ギャラリー / スワイプ対応） ---------------- */
+const lb = {items: [], idx: 0};
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function openLightbox(items, idx){
+  lb.items = items;
+  lb.idx = idx;
+  $("#overlay").classList.add("show");
+  $("#overlay").classList.toggle("multi", items.length > 1);
+  $("#overlay").classList.remove("ui-hidden");
+  document.body.classList.add("no-scroll");
+  showLb(idx, true);
+}
+function closeLightbox(){
+  $("#overlay").classList.remove("show");
+  $("#overlay").classList.remove("ui-hidden");
+  document.body.classList.remove("no-scroll");
+  resetZoom();
+}
+function showLb(idx, instant){
+  resetZoom();
+  lb.idx = (idx + lb.items.length) % lb.items.length;
+  const it = lb.items[lb.idx];
+  const img = $("#overlay-img");
+  const apply = () => {
+    img.src = it.src;
+    img.alt = it.alt || "拡大画像";
+    img.classList.remove("fading");
+  };
+  if(instant || REDUCED){ apply(); }
+  else{ img.classList.add("fading"); setTimeout(apply, 90); }
+  $("#ov-counter").textContent =
+    lb.items.length > 1 ? `${lb.idx + 1} / ${lb.items.length}` : "";
+  $("#ov-caption").textContent = it.alt || "";
+}
+$("#ov-prev").addEventListener("click", e => { e.stopPropagation(); showLb(lb.idx - 1); });
+$("#ov-next").addEventListener("click", e => { e.stopPropagation(); showLb(lb.idx + 1); });
+$("#ov-close").addEventListener("click", e => { e.stopPropagation(); closeLightbox(); });
+
+/* ---- ズーム状態（ピンチで拡大 / ドラッグで移動 / ダブルタップで切替） ---- */
+const Z = {s: 1, tx: 0, ty: 0};
+function applyZoom(){
+  const img = $("#overlay-img");
+  img.style.transform = (Z.s === 1 && !Z.tx && !Z.ty) ? "" :
+    `translate(${Z.tx}px, ${Z.ty}px) scale(${Z.s})`;
+  $("#overlay").classList.toggle("zoomed", Z.s > 1);
+}
+function resetZoom(){ Z.s = 1; Z.tx = 0; Z.ty = 0; applyZoom(); }
+function imgCenter(){
+  const r = $("#overlay-img").getBoundingClientRect();
+  return {x: r.left + r.width / 2 - Z.tx, y: r.top + r.height / 2 - Z.ty};
+}
+function zoomAt(px, py, s1){
+  s1 = Math.min(5, Math.max(1, s1));
+  const c = imgCenter();
+  Z.tx = px - c.x - (s1 / Z.s) * (px - c.x - Z.tx);
+  Z.ty = py - c.y - (s1 / Z.s) * (py - c.y - Z.ty);
+  Z.s = s1;
+  if(Z.s === 1){ Z.tx = 0; Z.ty = 0; }
+  applyZoom();
+}
+
+/* ---- タッチ: 1本指=スワイプ(等倍時)/パン(拡大時)、2本指=ピンチ ---- */
+const tc = {mode: null};       // "swipe" | "pan" | "pinch"
+const ovEl = $("#overlay");
+ovEl.addEventListener("touchstart", e => {
+  if(e.touches.length === 2){
+    const [a, b] = e.touches;
+    const c = imgCenter();
+    tc.mode = "pinch";
+    tc.d0 = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1;
+    tc.s0 = Z.s;
+    tc.m0 = {x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2};
+    tc.t0 = {x: Z.tx, y: Z.ty};
+    tc.c = c;
+  }else if(e.touches.length === 1){
+    tc.mode = (Z.s > 1) ? "pan" : "swipe";
+    tc.x = e.touches[0].clientX;
+    tc.y = e.touches[0].clientY;
+    tc.t0 = {x: Z.tx, y: Z.ty};
+    tc.moved = false;
+  }
+}, {passive: true});
+ovEl.addEventListener("touchmove", e => {
+  if(tc.mode === "pinch" && e.touches.length === 2){
+    e.preventDefault();
+    const [a, b] = e.touches;
+    const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1;
+    const m = {x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2};
+    const s1 = Math.min(5, Math.max(1, tc.s0 * d / tc.d0));
+    // ピンチ開始時の中点を不動点に、指の移動ぶんパンも追従させる
+    Z.tx = m.x - tc.c.x - (s1 / tc.s0) * (tc.m0.x - tc.c.x - tc.t0.x);
+    Z.ty = m.y - tc.c.y - (s1 / tc.s0) * (tc.m0.y - tc.c.y - tc.t0.y);
+    Z.s = s1;
+    if(Z.s === 1){ Z.tx = 0; Z.ty = 0; }
+    applyZoom();
+    tc.moved = true;
+  }else if(tc.mode === "pan" && e.touches.length === 1){
+    e.preventDefault();
+    Z.tx = tc.t0.x + (e.touches[0].clientX - tc.x);
+    Z.ty = tc.t0.y + (e.touches[0].clientY - tc.y);
+    applyZoom();
+    tc.moved = true;
+  }
+}, {passive: false});
+ovEl.addEventListener("touchend", e => {
+  if(tc.mode === "pinch"){
+    if(e.touches.length === 0){
+      if(Z.s < 1.06) resetZoom();      // ほぼ等倍まで戻したらスナップ
+      tc.mode = null;
+    }else if(e.touches.length === 1){  // 指1本残り → そのままパンに移行
+      tc.mode = "pan";
+      tc.x = e.touches[0].clientX;
+      tc.y = e.touches[0].clientY;
+      tc.t0 = {x: Z.tx, y: Z.ty};
+    }
+    return;
+  }
+  if(tc.mode === "swipe" && e.changedTouches.length === 1){
+    const dx = e.changedTouches[0].clientX - tc.x;
+    const dy = e.changedTouches[0].clientY - tc.y;
+    if(Math.abs(dx) > 10 || Math.abs(dy) > 10) tc.moved = true;  // 直後のclickを無効化
+    if(Math.abs(dx) > 44 && Math.abs(dx) > Math.abs(dy) * 1.4){
+      if(lb.items.length > 1) showLb(lb.idx + (dx < 0 ? 1 : -1));
+    }else if(Math.abs(dy) > 88 && Math.abs(dy) > Math.abs(dx) * 1.4){
+      closeLightbox();                 // 上下どちらのスワイプでも閉じる
+    }
+  }
+  tc.mode = null;
+}, {passive: true});
+
+/* ---- タップ: 画像1回=ボタン類の表示切替 / 2回=ズーム切替 / 背景=閉じる ---- */
+let tapTimer = null, lastTap = 0;
+$("#overlay-img").addEventListener("click", e => {
+  e.stopPropagation();
+  if(tc.moved){ tc.moved = false; return; }     // パン・ピンチ直後の誤タップを無視
+  const now = Date.now();
+  if(now - lastTap < 320){                      // ダブルタップ → ズーム切替
+    clearTimeout(tapTimer);
+    lastTap = 0;
+    if(Z.s > 1) resetZoom();
+    else zoomAt(e.clientX, e.clientY, 2.5);
+    return;
+  }
+  lastTap = now;
+  tapTimer = setTimeout(() => {                 // シングルタップ → UI表示切替
+    $("#overlay").classList.toggle("ui-hidden");
+  }, 320);
+});
+$("#overlay").addEventListener("click", closeLightbox);
+$("#btn-help").addEventListener("click", () => $("#help-modal").classList.add("show"));
+$("#help-close").addEventListener("click", () => $("#help-modal").classList.remove("show"));
+$("#help-modal").addEventListener("click", e => {
+  if(e.target === e.currentTarget) e.currentTarget.classList.remove("show");
+});
+/* ---------------- サイドバー（モバイル） ---------------- */
+function setSidebar(open){
+  $("#sidebar").classList.toggle("open", open);
+  $("#side-scrim").classList.toggle("show", open);
+  $("#menu-btn").setAttribute("aria-expanded", String(open));
+  $("#menu-btn").setAttribute("aria-label", open ? "メニューを閉じる" : "メニューを開く");
+  // メニュー表示中は背面のスクロールを止める（モバイル表示のみ）
+  if(matchMedia("(max-width: 920px)").matches)
+    document.body.classList.toggle("no-scroll", open);
+}
+$("#menu-btn").addEventListener("click", () =>
+  setSidebar(!$("#sidebar").classList.contains("open")));
+$("#side-scrim").addEventListener("click", () => setSidebar(false));  // 一覧側タップで閉じる
+
+/* サイドバー上の左スワイプで閉じる */
+const sSwipe = {x: 0, y: 0, active: false};
+$("#sidebar").addEventListener("touchstart", e => {
+  if(e.touches.length !== 1){ sSwipe.active = false; return; }
+  sSwipe.active = true;
+  sSwipe.x = e.touches[0].clientX;
+  sSwipe.y = e.touches[0].clientY;
+}, {passive: true});
+$("#sidebar").addEventListener("touchend", e => {
+  if(!sSwipe.active) return;
+  sSwipe.active = false;
+  const dx = e.changedTouches[0].clientX - sSwipe.x;
+  const dy = e.changedTouches[0].clientY - sSwipe.y;
+  if(dx < -56 && Math.abs(dx) > Math.abs(dy) * 1.4) setSidebar(false);
+}, {passive: true});
+$("#top-btn").addEventListener("click", () =>
+  window.scrollTo({top:0, behavior:"smooth"}));
+$("#search-btn").addEventListener("click", () => {
+  $("#q").focus();                 // タップ操作の中で同期的にフォーカス（キーボードを開く）
+  window.scrollTo({top:0});
+  setSidebar(false);
+});
+addEventListener("scroll", () =>
+  $("#top-btn").classList.toggle("show", window.scrollY > 900), {passive:true});
+
+/* 無限スクロール */
+const io = new IntersectionObserver(entries => {
+  if(entries.some(en => en.isIntersecting)) maybeLoadMore();
+}, {rootMargin: "600px"});
+io.observe($("#sentinel"));
+function maybeLoadMore(){
+  if(state.loading || state.done) return;
+  const rect = $("#sentinel").getBoundingClientRect();
+  if(rect.top < window.innerHeight + 600) doSearch(false);
+}
+
+/* 起動 */
+(async () => {
+  await Promise.all([loadMeta(), loadLabels()]);
+  await doSearch(true);
+})();
+</script>
+</body>
+</html>
