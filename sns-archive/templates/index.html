@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>統合SNSアーカイブ</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128218;</text></svg>">
 <script>
@@ -305,10 +305,53 @@ html[data-theme="dark"] .bm-pop .newrow button{color:#10131a}
   padding:2px 8px;border-radius:6px}
 
 .overlay{position:fixed;inset:0;background:var(--scrim);z-index:100;
-  display:none;place-items:center;padding:24px;cursor:zoom-out;
-  backdrop-filter:blur(6px)}
-.overlay.show{display:grid}
-.overlay img{max-width:96vw;max-height:92vh;border-radius:var(--r-m);box-shadow:var(--shadow-lg)}
+  display:none;cursor:zoom-out;
+  backdrop-filter:blur(6px);touch-action:none;overflow:hidden;
+  user-select:none;-webkit-user-select:none}
+.overlay.show{display:block}
+/* 画像はどの環境でも確実に画面中央（絶対配置 + margin:auto） */
+.overlay img{position:absolute;inset:0;margin:auto;
+  max-width:calc(100% - 32px);max-height:calc(100% - 32px);
+  width:auto;height:auto;
+  border-radius:var(--r-m);box-shadow:var(--shadow-lg);cursor:default;
+  touch-action:none;will-change:transform;transform-origin:center center}
+.overlay.zoomed img{cursor:grab;border-radius:0}
+/* 画像タップでボタン類を消せる（もう一度タップで戻る） */
+.ov-nav,.ov-close,.ov-foot{transition:opacity .18s}
+.overlay.ui-hidden .ov-nav,
+.overlay.ui-hidden .ov-close,
+.overlay.ui-hidden .ov-foot{opacity:0;pointer-events:none}
+@media (prefers-reduced-motion:no-preference){
+  .overlay img{transition:opacity .16s}   /* transformは即時（ピンチ追従のため） */
+  .overlay img.fading{opacity:0}
+}
+.ov-close{position:absolute;top:14px;right:14px;z-index:2;
+  width:44px;height:44px;border-radius:50%;border:0;cursor:pointer;
+  background:rgba(20,24,34,.55);color:#fff;font-size:22px;line-height:1;
+  backdrop-filter:blur(4px)}
+.ov-close:hover{background:rgba(20,24,34,.8)}
+.ov-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:2;
+  width:48px;height:64px;border:0;cursor:pointer;border-radius:var(--r-s);
+  background:rgba(20,24,34,.45);color:#fff;font-size:30px;line-height:1;
+  backdrop-filter:blur(4px);display:none}
+.overlay.multi .ov-nav{display:block}
+.ov-nav:hover{background:rgba(20,24,34,.75)}
+.ov-nav.prev{left:14px}
+.ov-nav.next{right:14px}
+@media (pointer:coarse){          /* スマホはスワイプが主役なので矢印は控えめに */
+  .ov-nav{width:38px;height:52px;font-size:24px;background:rgba(20,24,34,.30)}
+}
+.ov-foot{position:absolute;left:0;right:0;bottom:0;z-index:2;
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:14px 20px calc(14px + env(safe-area-inset-bottom));
+  color:#fff;font-size:13px;text-align:center;pointer-events:none;
+  background:linear-gradient(transparent, rgba(10,13,20,.55))}
+.ov-foot:has(#ov-counter:empty):has(#ov-caption:empty){display:none}
+#ov-counter{font-family:var(--font-mono);font-variant-numeric:tabular-nums;
+  font-size:12px;opacity:.9}
+#ov-caption{max-width:min(680px,92vw);overflow:hidden;text-overflow:ellipsis;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  opacity:.85;line-height:1.5}
 
 .modal{position:fixed;inset:0;background:var(--scrim);z-index:110;
   display:none;place-items:center;padding:20px;backdrop-filter:blur(6px)}
@@ -328,11 +371,20 @@ html[data-theme="dark"] .modal-box{border:1px solid var(--border)}
   font-size:20px;cursor:pointer;padding:3px 10px;border-radius:999px}
 .modal-close:hover{color:var(--text);background:var(--panel2)}
 
-.menu-btn{display:none;position:fixed;left:16px;bottom:16px;z-index:60;
+.side-scrim{position:fixed;inset:0;background:var(--scrim);z-index:49;
+  opacity:0;pointer-events:none;transition:opacity .2s;backdrop-filter:blur(2px)}
+.side-scrim.show{opacity:1;pointer-events:auto}
+.menu-btn{display:none;position:fixed;left:16px;
+  bottom:calc(16px + env(safe-area-inset-bottom));z-index:60;
   width:54px;height:54px;border-radius:50%;background:var(--link);color:#fff;
   border:0;font-size:20px;cursor:pointer;box-shadow:var(--shadow-lg)}
 html[data-theme="dark"] .menu-btn{color:#10131a}
-.top-btn{position:fixed;right:18px;bottom:18px;z-index:60;
+.search-btn{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));
+  z-index:60;width:46px;height:46px;border-radius:50%;background:var(--panel);
+  border:0;font-size:17px;cursor:pointer;color:var(--muted);box-shadow:var(--shadow-lg)}
+.search-btn:hover{color:var(--text)}
+.search-btn:active{transform:scale(.94)}
+.top-btn{position:fixed;right:18px;bottom:calc(74px + env(safe-area-inset-bottom));z-index:60;
   width:46px;height:46px;border-radius:50%;background:var(--panel);
   border:0;font-size:17px;cursor:pointer;color:var(--muted);
   box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;
@@ -342,13 +394,31 @@ html[data-theme="dark"] .menu-btn{color:#10131a}
 @media (max-width:920px){
   .layout{grid-template-columns:1fr}
   .sidebar{position:fixed;left:0;top:0;bottom:0;width:min(312px,86vw);
-    transform:translateX(-102%);transition:transform .22s;z-index:50;height:100%;
-    box-shadow:var(--shadow-lg);background:var(--bg)}
+    transform:translateX(-102%);transition:transform .22s;z-index:50;
+    height:100vh;height:100dvh;
+    box-shadow:var(--shadow-lg);background:var(--bg);
+    padding-bottom:calc(48px + env(safe-area-inset-bottom));
+    overscroll-behavior:contain}
   .sidebar.open{transform:none}
   .menu-btn{display:block}
   .main{padding:0 14px 128px}
   .post{padding:14px 16px 12px 22px}
-  .tab{padding:8px 16px}
+  .tabs{max-width:100%;overflow-x:auto;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{padding:8px 16px;white-space:nowrap}
+}
+body.no-scroll{overflow:hidden}
+
+/* ---------- タッチデバイス: 当たり判定と押しやすさ ---------- */
+@media (pointer:coarse){
+  .chk,.mrow,.bm-row,.cal summary{padding-top:9px;padding-bottom:9px}
+  .bm-btn{padding:8px 12px;font-size:15px}
+  .chip{padding:6px 10px 6px 16px}
+  .chip button{font-size:18px;padding:4px 8px}
+  .modal-close{padding:8px 14px}
+  .post header .date{padding:4px 0}
+  .bm-tag{padding:5px 14px}
+  .theme-btn{width:42px;height:42px}
 }
 </style>
 </head>
@@ -426,10 +496,21 @@ html[data-theme="dark"] .menu-btn{color:#10131a}
   </div>
 </div>
 
-<button class="menu-btn" id="menu-btn" aria-label="メニュー">&#9776;</button>
+<div class="side-scrim" id="side-scrim" aria-hidden="true"></div>
+<button class="menu-btn" id="menu-btn" aria-label="メニューを開く" aria-expanded="false">&#9776;</button>
 <button class="top-btn" id="top-btn" aria-label="いちばん上へ" title="いちばん上へ">&#8593;</button>
+<button class="search-btn" id="search-btn" aria-label="検索欄へ移動" title="検索">&#128269;</button>
 
-<div class="overlay" id="overlay" role="dialog" aria-label="画像の拡大表示（クリックまたはEscで閉じる）"><img id="overlay-img" alt="拡大画像"></div>
+<div class="overlay" id="overlay" role="dialog" aria-label="画像の拡大表示（上下スワイプまたはEscで閉じる）">
+  <button class="ov-close" id="ov-close" aria-label="閉じる">&#215;</button>
+  <button class="ov-nav prev" id="ov-prev" aria-label="前の画像">&#8249;</button>
+  <img id="overlay-img" alt="拡大画像">
+  <button class="ov-nav next" id="ov-next" aria-label="次の画像">&#8250;</button>
+  <div class="ov-foot">
+    <span id="ov-counter" aria-live="polite"></span>
+    <span id="ov-caption"></span>
+  </div>
+</div>
 
 <div class="modal" id="help-modal" role="dialog" aria-modal="true" aria-label="検索コマンド一覧">
   <div class="modal-box">
@@ -978,18 +1059,28 @@ function scheduleSearch(){
 }
 $("#btn-search").addEventListener("click", runQuery);
 $("#q").addEventListener("keydown", e => {
-  if(e.key === "Enter"){ clearTimeout(searchTimer); runQuery(); }
+  if(e.key === "Enter"){
+    e.preventDefault();
+    clearTimeout(searchTimer);
+    runQuery();
+    e.target.blur();        // スマホのキーボードを畳む
+  }
 });
 $("#q").addEventListener("input", scheduleSearch);   // 打鍵に追従（デバウンス付き）
 document.addEventListener("keydown", e => {
   if(e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){
     e.preventDefault(); $("#q").focus();
   }
+  if($("#overlay").classList.contains("show")){
+    if(e.key === "ArrowLeft"){ showLb(lb.idx - 1); return; }
+    if(e.key === "ArrowRight"){ showLb(lb.idx + 1); return; }
+    if(e.key === "Escape"){ closeLightbox(); return; }
+  }
   if(e.key === "Escape"){
     closeBmPop();
-    $("#overlay").classList.remove("show");
+    closeLightbox();
+    setSidebar(false);
     $("#help-modal").classList.remove("show");
-    $("#sidebar").classList.remove("open");
   }
 });
 document.querySelectorAll("#type-list input[data-type]").forEach(cb => {
@@ -1030,20 +1121,204 @@ $("#results").addEventListener("click", e => {
   }
   const img = e.target.closest(".media img[data-full]");
   if(img){
-    $("#overlay-img").src = img.dataset.full;
-    $("#overlay").classList.add("show");
+    // 同じ投稿内の画像をまとめてギャラリーとして開く
+    const all = [...img.closest(".media").querySelectorAll("img[data-full]")];
+    openLightbox(all.map(el => ({src: el.dataset.full, alt: el.alt || ""})),
+                 all.indexOf(img));
   }
 });
-$("#overlay").addEventListener("click", () => $("#overlay").classList.remove("show"));
+
+/* ---------------- ライトボックス（ギャラリー / スワイプ対応） ---------------- */
+const lb = {items: [], idx: 0};
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function openLightbox(items, idx){
+  lb.items = items;
+  lb.idx = idx;
+  $("#overlay").classList.add("show");
+  $("#overlay").classList.toggle("multi", items.length > 1);
+  $("#overlay").classList.remove("ui-hidden");
+  document.body.classList.add("no-scroll");
+  showLb(idx, true);
+}
+function closeLightbox(){
+  $("#overlay").classList.remove("show");
+  $("#overlay").classList.remove("ui-hidden");
+  document.body.classList.remove("no-scroll");
+  resetZoom();
+}
+function showLb(idx, instant){
+  resetZoom();
+  lb.idx = (idx + lb.items.length) % lb.items.length;
+  const it = lb.items[lb.idx];
+  const img = $("#overlay-img");
+  const apply = () => {
+    img.src = it.src;
+    img.alt = it.alt || "拡大画像";
+    img.classList.remove("fading");
+  };
+  if(instant || REDUCED){ apply(); }
+  else{ img.classList.add("fading"); setTimeout(apply, 90); }
+  $("#ov-counter").textContent =
+    lb.items.length > 1 ? `${lb.idx + 1} / ${lb.items.length}` : "";
+  $("#ov-caption").textContent = it.alt || "";
+}
+$("#ov-prev").addEventListener("click", e => { e.stopPropagation(); showLb(lb.idx - 1); });
+$("#ov-next").addEventListener("click", e => { e.stopPropagation(); showLb(lb.idx + 1); });
+$("#ov-close").addEventListener("click", e => { e.stopPropagation(); closeLightbox(); });
+
+/* ---- ズーム状態（ピンチで拡大 / ドラッグで移動 / ダブルタップで切替） ---- */
+const Z = {s: 1, tx: 0, ty: 0};
+function applyZoom(){
+  const img = $("#overlay-img");
+  img.style.transform = (Z.s === 1 && !Z.tx && !Z.ty) ? "" :
+    `translate(${Z.tx}px, ${Z.ty}px) scale(${Z.s})`;
+  $("#overlay").classList.toggle("zoomed", Z.s > 1);
+}
+function resetZoom(){ Z.s = 1; Z.tx = 0; Z.ty = 0; applyZoom(); }
+function imgCenter(){
+  const r = $("#overlay-img").getBoundingClientRect();
+  return {x: r.left + r.width / 2 - Z.tx, y: r.top + r.height / 2 - Z.ty};
+}
+function zoomAt(px, py, s1){
+  s1 = Math.min(5, Math.max(1, s1));
+  const c = imgCenter();
+  Z.tx = px - c.x - (s1 / Z.s) * (px - c.x - Z.tx);
+  Z.ty = py - c.y - (s1 / Z.s) * (py - c.y - Z.ty);
+  Z.s = s1;
+  if(Z.s === 1){ Z.tx = 0; Z.ty = 0; }
+  applyZoom();
+}
+
+/* ---- タッチ: 1本指=スワイプ(等倍時)/パン(拡大時)、2本指=ピンチ ---- */
+const tc = {mode: null};       // "swipe" | "pan" | "pinch"
+const ovEl = $("#overlay");
+ovEl.addEventListener("touchstart", e => {
+  if(e.touches.length === 2){
+    const [a, b] = e.touches;
+    const c = imgCenter();
+    tc.mode = "pinch";
+    tc.d0 = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1;
+    tc.s0 = Z.s;
+    tc.m0 = {x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2};
+    tc.t0 = {x: Z.tx, y: Z.ty};
+    tc.c = c;
+  }else if(e.touches.length === 1){
+    tc.mode = (Z.s > 1) ? "pan" : "swipe";
+    tc.x = e.touches[0].clientX;
+    tc.y = e.touches[0].clientY;
+    tc.t0 = {x: Z.tx, y: Z.ty};
+    tc.moved = false;
+  }
+}, {passive: true});
+ovEl.addEventListener("touchmove", e => {
+  if(tc.mode === "pinch" && e.touches.length === 2){
+    e.preventDefault();
+    const [a, b] = e.touches;
+    const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1;
+    const m = {x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2};
+    const s1 = Math.min(5, Math.max(1, tc.s0 * d / tc.d0));
+    // ピンチ開始時の中点を不動点に、指の移動ぶんパンも追従させる
+    Z.tx = m.x - tc.c.x - (s1 / tc.s0) * (tc.m0.x - tc.c.x - tc.t0.x);
+    Z.ty = m.y - tc.c.y - (s1 / tc.s0) * (tc.m0.y - tc.c.y - tc.t0.y);
+    Z.s = s1;
+    if(Z.s === 1){ Z.tx = 0; Z.ty = 0; }
+    applyZoom();
+    tc.moved = true;
+  }else if(tc.mode === "pan" && e.touches.length === 1){
+    e.preventDefault();
+    Z.tx = tc.t0.x + (e.touches[0].clientX - tc.x);
+    Z.ty = tc.t0.y + (e.touches[0].clientY - tc.y);
+    applyZoom();
+    tc.moved = true;
+  }
+}, {passive: false});
+ovEl.addEventListener("touchend", e => {
+  if(tc.mode === "pinch"){
+    if(e.touches.length === 0){
+      if(Z.s < 1.06) resetZoom();      // ほぼ等倍まで戻したらスナップ
+      tc.mode = null;
+    }else if(e.touches.length === 1){  // 指1本残り → そのままパンに移行
+      tc.mode = "pan";
+      tc.x = e.touches[0].clientX;
+      tc.y = e.touches[0].clientY;
+      tc.t0 = {x: Z.tx, y: Z.ty};
+    }
+    return;
+  }
+  if(tc.mode === "swipe" && e.changedTouches.length === 1){
+    const dx = e.changedTouches[0].clientX - tc.x;
+    const dy = e.changedTouches[0].clientY - tc.y;
+    if(Math.abs(dx) > 10 || Math.abs(dy) > 10) tc.moved = true;  // 直後のclickを無効化
+    if(Math.abs(dx) > 44 && Math.abs(dx) > Math.abs(dy) * 1.4){
+      if(lb.items.length > 1) showLb(lb.idx + (dx < 0 ? 1 : -1));
+    }else if(Math.abs(dy) > 88 && Math.abs(dy) > Math.abs(dx) * 1.4){
+      closeLightbox();                 // 上下どちらのスワイプでも閉じる
+    }
+  }
+  tc.mode = null;
+}, {passive: true});
+
+/* ---- タップ: 画像1回=ボタン類の表示切替 / 2回=ズーム切替 / 背景=閉じる ---- */
+let tapTimer = null, lastTap = 0;
+$("#overlay-img").addEventListener("click", e => {
+  e.stopPropagation();
+  if(tc.moved){ tc.moved = false; return; }     // パン・ピンチ直後の誤タップを無視
+  const now = Date.now();
+  if(now - lastTap < 320){                      // ダブルタップ → ズーム切替
+    clearTimeout(tapTimer);
+    lastTap = 0;
+    if(Z.s > 1) resetZoom();
+    else zoomAt(e.clientX, e.clientY, 2.5);
+    return;
+  }
+  lastTap = now;
+  tapTimer = setTimeout(() => {                 // シングルタップ → UI表示切替
+    $("#overlay").classList.toggle("ui-hidden");
+  }, 320);
+});
+$("#overlay").addEventListener("click", closeLightbox);
 $("#btn-help").addEventListener("click", () => $("#help-modal").classList.add("show"));
 $("#help-close").addEventListener("click", () => $("#help-modal").classList.remove("show"));
 $("#help-modal").addEventListener("click", e => {
   if(e.target === e.currentTarget) e.currentTarget.classList.remove("show");
 });
+/* ---------------- サイドバー（モバイル） ---------------- */
+function setSidebar(open){
+  $("#sidebar").classList.toggle("open", open);
+  $("#side-scrim").classList.toggle("show", open);
+  $("#menu-btn").setAttribute("aria-expanded", String(open));
+  $("#menu-btn").setAttribute("aria-label", open ? "メニューを閉じる" : "メニューを開く");
+  // メニュー表示中は背面のスクロールを止める（モバイル表示のみ）
+  if(matchMedia("(max-width: 920px)").matches)
+    document.body.classList.toggle("no-scroll", open);
+}
 $("#menu-btn").addEventListener("click", () =>
-  $("#sidebar").classList.toggle("open"));
+  setSidebar(!$("#sidebar").classList.contains("open")));
+$("#side-scrim").addEventListener("click", () => setSidebar(false));  // 一覧側タップで閉じる
+
+/* サイドバー上の左スワイプで閉じる */
+const sSwipe = {x: 0, y: 0, active: false};
+$("#sidebar").addEventListener("touchstart", e => {
+  if(e.touches.length !== 1){ sSwipe.active = false; return; }
+  sSwipe.active = true;
+  sSwipe.x = e.touches[0].clientX;
+  sSwipe.y = e.touches[0].clientY;
+}, {passive: true});
+$("#sidebar").addEventListener("touchend", e => {
+  if(!sSwipe.active) return;
+  sSwipe.active = false;
+  const dx = e.changedTouches[0].clientX - sSwipe.x;
+  const dy = e.changedTouches[0].clientY - sSwipe.y;
+  if(dx < -56 && Math.abs(dx) > Math.abs(dy) * 1.4) setSidebar(false);
+}, {passive: true});
 $("#top-btn").addEventListener("click", () =>
   window.scrollTo({top:0, behavior:"smooth"}));
+$("#search-btn").addEventListener("click", () => {
+  $("#q").focus();                 // タップ操作の中で同期的にフォーカス（キーボードを開く）
+  window.scrollTo({top:0});
+  setSidebar(false);
+});
 addEventListener("scroll", () =>
   $("#top-btn").classList.toggle("show", window.scrollY > 900), {passive:true});
 
