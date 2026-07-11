@@ -250,9 +250,9 @@ html[data-theme="dark"] .chip{color:var(--link-strong)}
 .media[data-n="1"]{grid-template-columns:1fr}
 .media:not([data-n="1"]){grid-template-columns:1fr 1fr}
 .media img{width:100%;border-radius:var(--r-s);background:var(--panel2);cursor:zoom-in;display:block}
-.media[data-n="1"] img{max-height:480px;object-fit:contain}
+.media[data-n="1"] img{aspect-ratio:16/10;max-height:480px;object-fit:contain}
 .media:not([data-n="1"]) img{aspect-ratio:16/11;object-fit:cover}
-.media video{width:100%;max-height:480px;border-radius:var(--r-s);background:#000;display:block}
+.media video{width:100%;aspect-ratio:16/9;max-height:480px;border-radius:var(--r-s);background:#000;display:block}
 .media audio{width:100%}
 .media .vlink{position:relative;display:block}
 .media .vlink::after{content:"\25B6";position:absolute;inset:0;display:grid;
@@ -301,10 +301,13 @@ html[data-theme="dark"] .bm-pop .newrow button{color:#10131a}
 .ctx-btn{background:none;border:0;cursor:pointer;color:var(--faint);font-size:12px;
   padding:3px 8px;border-radius:999px;line-height:1.4;transition:background .12s,color .12s}
 .ctx-btn:hover{color:var(--text);background:var(--panel2)}
-.ctx-modal{z-index:90}                      /* 画像の拡大(100)より下に置く */
+.modal.ctx-modal{z-index:90}                /* 画像の拡大(100)より下に置く */
 .ctx-box{max-width:720px;background:var(--bg);padding:22px 22px 26px}
 .ctx-box h3{margin-bottom:2px}
-.ctx-box .sub{margin-bottom:14px}
+.ctx-box .sub{margin-bottom:8px}
+.ctx-opts{display:flex;flex-wrap:wrap;gap:2px 14px;margin:0 -10px 12px;font-size:13px}
+.ctx-opts .chk{padding:4px 10px}
+.ctx-opts .chk:hover{background:var(--panel)}
 .ctx-box .post{box-shadow:var(--shadow)}
 html[data-theme="dark"] .ctx-box .post{border:1px solid var(--border)}
 .post.ctx-target{outline:2px solid var(--link);outline-offset:2px}
@@ -544,6 +547,12 @@ body.no-scroll{overflow:hidden}
     <button class="modal-close" id="ctx-close" aria-label="閉じる">&#215;</button>
     <h3>&#9202; 前後の投稿</h3>
     <p class="sub" id="ctx-sub"></p>
+    <div class="ctx-opts">
+      <label class="chk"><input type="checkbox" id="ctx-same" checked>
+        <span class="lbl">同じアカウントのみ</span></label>
+      <label class="chk"><input type="checkbox" id="ctx-likes" checked>
+        <span class="lbl">いいねも含める</span></label>
+    </div>
     <button class="ctx-more" id="ctx-newer">&#9650; これより後（新しい側）を10件</button>
     <div id="ctx-list"></div>
     <button class="ctx-more" id="ctx-older">&#9660; これより前（古い側）を10件</button>
@@ -1181,6 +1190,24 @@ $("#ctx-list").addEventListener("click", onPostClick);
 /* ---------------- 文脈表示（前後の投稿） ---------------- */
 const ctx = {top: null, bottom: null, id: null};
 
+// 表示条件（記憶される）: 同じアカウントのみ / いいねも含める
+$("#ctx-same").checked = localStorage.getItem("ctxSame") !== "0";
+$("#ctx-likes").checked = localStorage.getItem("ctxLikes") !== "0";
+function ctxParams(){
+  const p = [];
+  if(!$("#ctx-same").checked) p.push("scope=all");
+  if(!$("#ctx-likes").checked) p.push("no_likes=1");
+  return p.length ? "&" + p.join("&") : "";
+}
+$("#ctx-same").addEventListener("change", () => {
+  localStorage.setItem("ctxSame", $("#ctx-same").checked ? "1" : "0");
+  if(ctx.id) openContext(ctx.id);
+});
+$("#ctx-likes").addEventListener("change", () => {
+  localStorage.setItem("ctxLikes", $("#ctx-likes").checked ? "1" : "0");
+  if(ctx.id) openContext(ctx.id);
+});
+
 async function openContext(id){
   ctx.id = id;
   const box = document.querySelector(".ctx-box");
@@ -1191,9 +1218,11 @@ async function openContext(id){
   $("#ctx-modal").classList.add("show");
   document.body.classList.add("no-scroll");
   try{
-    const d = await (await fetch(`/api/context?id=${id}`)).json();
+    const d = await (await fetch(`/api/context?id=${id}${ctxParams()}`)).json();
     if(d.error){ $("#ctx-sub").textContent = d.error; return; }
-    $("#ctx-sub").textContent = `${d.target.account} の時系列（新しい順）`;
+    $("#ctx-sub").textContent = $("#ctx-same").checked
+      ? `${d.target.account} の時系列（新しい順）`
+      : "すべてのアカウントの時系列（新しい順）";
     const list = $("#ctx-list");
     list.innerHTML = "";
     for(const p of d.newer) list.appendChild(postCard(p));
@@ -1205,10 +1234,12 @@ async function openContext(id){
     ctx.bottom = cursorOf(d.older[d.older.length - 1] || d.target);
     if(!d.newer.length) setBtn("#ctx-newer", false, "これより新しい投稿はありません");
     if(!d.older.length) setBtn("#ctx-older", false, "これより古い投稿はありません");
-    // 対象投稿が見える位置までスクロール
-    requestAnimationFrame(() => {
+    // 対象投稿が見える位置までスクロール（画像読み込みで多少ずれても再センタリング）
+    const center = () => {
       box.scrollTop = tEl.offsetTop - box.clientHeight / 2 + tEl.offsetHeight / 2;
-    });
+    };
+    requestAnimationFrame(center);
+    setTimeout(center, 400);
   }catch(err){
     $("#ctx-sub").textContent = "読み込みに失敗しました: " + err;
   }
@@ -1225,7 +1256,7 @@ async function loadCtx(dir){
   if(!cur) return;
   const box = document.querySelector(".ctx-box");
   const d = await (await fetch(
-    `/api/context?id=${ctx.id}&dir=${dir}&cursor=${encodeURIComponent(cur)}`)).json();
+    `/api/context?id=${ctx.id}&dir=${dir}&cursor=${encodeURIComponent(cur)}${ctxParams()}`)).json();
   const posts = d.posts || [];
   const list = $("#ctx-list");
   if(dir === "newer"){

@@ -496,21 +496,29 @@ def api_context():
             return jsonify({"error": "投稿が見つかりません"}), 404
         target = dict(row)
         svc, acct = target["service"], target["account"]
+        scope_all = request.args.get("scope") == "all"
+        no_likes = request.args.get("no_likes") == "1"
 
         def fetch(newer, loc, rid, n):
+            cond, cp = [], []
+            if not scope_all:
+                cond.append("service=? AND account=?")
+                cp += [svc, acct]
+            if no_likes:
+                cond.append("type != 'like'")
+            base = ("SELECT * FROM posts WHERE "
+                    + " AND ".join(cond + ["%s"]))
             if newer:
                 rows = con.execute(
-                    "SELECT * FROM posts WHERE service=? AND account=? "
-                    "AND (created_local > ? OR (created_local = ? AND id > ?)) "
-                    "ORDER BY created_local ASC, id ASC LIMIT ?",
-                    (svc, acct, loc, loc, rid, n)).fetchall()
+                    base % "(created_local > ? OR (created_local = ? AND id > ?)) "
+                    + "ORDER BY created_local ASC, id ASC LIMIT ?",
+                    (*cp, loc, loc, rid, n)).fetchall()
                 rows = rows[::-1]          # 表示は常に新しい順
             else:
                 rows = con.execute(
-                    "SELECT * FROM posts WHERE service=? AND account=? "
-                    "AND (created_local < ? OR (created_local = ? AND id < ?)) "
-                    "ORDER BY created_local DESC, id DESC LIMIT ?",
-                    (svc, acct, loc, loc, rid, n)).fetchall()
+                    base % "(created_local < ? OR (created_local = ? AND id < ?)) "
+                    + "ORDER BY created_local DESC, id DESC LIMIT ?",
+                    (*cp, loc, loc, rid, n)).fetchall()
             return attach_details(con, [dict(r) for r in rows])
 
         if direction in ("newer", "older"):
