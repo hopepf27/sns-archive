@@ -1,7 +1,7 @@
 # sns-archive
 
 100％Claudeさん家Fableさん産による、sns-archiveです。  
-自分の各種SNSの投稿データ、いいねデータをローカルで保存することができ、また検索を行うことができます。Twitter（現X）、Fediverse（Mastodon・Misskey）、Blueskyに対応しています。  
+自分の各種SNSの投稿データ、いいねデータをローカルで保存することができ、また検索を行うことができます。Twitter（現X）、Fediverse（Mastodon・Misskey）、Blueskyに対応しています。詳しくは`sns-archive/README.md`ならびに`sns-archive/linux/README_linux.md`を読んでください。  
 本アプリの投稿者はコードの読み方がわかりません。**一切の責任は存在しません。**  
 <br>
 **※`linux/`にあるLinux版のsh等は未検証です！**
