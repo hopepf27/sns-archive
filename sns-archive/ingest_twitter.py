@@ -197,8 +197,7 @@ def main():
     ap = argparse.ArgumentParser(description="Twitterアーカイブ取り込み")
     ap.add_argument("--archive", help="アーカイブzipまたはフォルダ（config.jsonより優先）")
     ap.add_argument("--full", action="store_true",
-                    help="他サービスと同じ引数を受けるためのもの"
-                         "（アーカイブ取り込みは常に全件を読むため効果なし）")
+                    help="取り込み済みのアーカイブでも強制的に読み込み直す")
     ap.add_argument("--keep-extracted", action="store_true",
                     help="zipから展開した一時データを取り込み後に削除しない")
     args = ap.parse_args()
@@ -217,14 +216,49 @@ def main():
         if len(entries) > 1:
             print(f"\n##### Twitterアカウント {i + 1}/{len(entries)} #####")
         try:
-            ingest_one(cfg, tw, keep_extracted=keep)
+            ingest_one(cfg, tw, keep_extracted=keep, force=args.full)
         except SystemExit as e:
             print(f"! スキップ: {e}")
 
 
-def ingest_one(cfg, tw, keep_extracted=False):
+def _archive_signature(path: Path):
+    """アーカイブの同一性判定に使う署名（サイズと更新時刻）。
+    zipはファイル自体、フォルダは中の tweets.js を代表として見る。"""
+    try:
+        target = path
+        if path.is_dir():
+            for name in ("data/tweets.js", "tweets.js", "data/tweet.js", "tweet.js"):
+                cand = path / name
+                if cand.is_file():
+                    target = cand
+                    break
+            else:
+                return None          # 代表ファイル不明 → 毎回取り込む（安全側）
+        st = target.stat()
+        return f"{st.st_size},{st.st_mtime_ns}"
+    except OSError:
+        return None
+
+
+def ingest_one(cfg, tw, keep_extracted=False, force=False):
     src = tw.get("archive_dir")
-    data_dir, extracted_root = resolve_archive_dir(Path(src).expanduser())
+    src_path = Path(src).expanduser()
+
+    # 同じアーカイブは2回目以降スキップする（sync_all を毎日回しても安全）。
+    # ファイルを差し替えたり更新すれば自動で再取り込みされる。
+    con0 = common.connect()
+    seen_key = f"twitter:archive_seen:{src_path.resolve()}"
+    sig = _archive_signature(src_path)
+    if not force and sig and common.get_state(con0, seen_key) == sig:
+        print(f"=== Twitter取り込み: {src_path.name} ===")
+        print("  このアーカイブは取り込み済みのためスキップしました。")
+        print("  （新しいアーカイブに差し替えれば自動で取り込みます。"
+              "強制的に読み直す場合は --full）")
+        con0.close()
+        return
+    con0.close()
+
+    data_dir, extracted_root = resolve_archive_dir(src_path)
     tz = common.get_tz(cfg)
 
     username = account_username(data_dir)
@@ -347,6 +381,10 @@ def ingest_one(cfg, tw, keep_extracted=False):
         con.commit()
 
     con.commit()
+    # 取り込みが最後まで成功したので、このアーカイブを取り込み済みとして記録
+    if sig:
+        common.set_state(con, seen_key, sig)
+        con.commit()
     con.close()
     print("---- 完了 ----")
     print(f"投稿 {n_post} / RT {n_rt} / うち返信 {n_reply} / いいね {n_like}"

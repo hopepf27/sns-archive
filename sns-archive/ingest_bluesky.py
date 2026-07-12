@@ -491,10 +491,32 @@ def sync_all(cfg, args):
         if len(entries) > 1:
             print(f"\n##### Blueskyアカウント {i + 1}/{len(entries)} #####")
         src = None
+        seen_key = seen_sig = None
+        if mode != "api":
+            # 同じCARアーカイブは2回目以降スキップ（差し替え・更新で自動再取り込み、--fullで強制）
+            ap_path = Path(bs.get("archive")).expanduser()
+            if ap_path.is_file():
+                st = ap_path.stat()
+                seen_key = f"bluesky:archive_seen:{ap_path.resolve()}"
+                seen_sig = f"{st.st_size},{st.st_mtime_ns}"
+                if not getattr(args, "full", False):
+                    c0 = common.connect()
+                    seen = common.get_state(c0, seen_key)
+                    c0.close()
+                    if seen == seen_sig:
+                        print(f"=== Bluesky取り込み(エクスポート): {ap_path.name} ===")
+                        print("  このアーカイブは取り込み済みのためスキップしました。"
+                              "（強制的に読み直す場合は --full）")
+                        continue
         try:
             sess = requests.Session()
             src = ApiSource(bs) if mode == "api" else ExportSource(bs, sess)
             run_sync(cfg, src, args, sess)
+            if seen_key and seen_sig:
+                c0 = common.connect()
+                common.set_state(c0, seen_key, seen_sig)
+                c0.commit()
+                c0.close()
             root = getattr(src, "extracted_root", None)
             keep = args.keep_extracted or bool(cfg.get("keep_extracted"))
             common.cleanup_extracted(root, keep=keep)

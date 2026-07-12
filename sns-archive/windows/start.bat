@@ -1,5 +1,5 @@
 @echo off
-cd /d "%~dp0"
+cd /d "%~dp0.."
 set PYTHONUTF8=1
 if not exist "venv\Scripts\python.exe" (
     echo [エラー] 先に setup.bat を実行してください。
@@ -13,7 +13,7 @@ if not exist "config.json" (
     exit /b 1
 )
 
-venv\Scripts\python ingest_bluesky.py %*
-echo.
-echo Blueskyの同期が終わりました。
+echo ビューアを起動しています... ブラウザが自動で開きます。
+echo 終了するには、このウィンドウで Ctrl+C を押すか、ウィンドウを閉じてください。
+venv\Scripts\python app.py
 pause

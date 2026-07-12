@@ -1,5 +1,5 @@
 @echo off
-cd /d "%~dp0"
+cd /d "%~dp0.."
 set PYTHONUTF8=1
 if not exist "venv\Scripts\python.exe" (
     echo [エラー] 先に setup.bat を実行してください。
@@ -13,7 +13,7 @@ if not exist "config.json" (
     exit /b 1
 )
 
-venv\Scripts\python ingest_mastodon.py %*
+venv\Scripts\python ingest_twitter.py %*
 echo.
-echo Mastodonの同期が終わりました。
+echo Twitterの同期が終わりました。
 pause

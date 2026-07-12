@@ -539,28 +539,53 @@ def api_context():
         con.close()
 
 
+@app.route("/favicon.ico")
+def favicon():
+    return send_from_directory(str(common.ROOT / "icons"), "viewer.ico")
+
+
 @app.route("/media/<path:filename>")
 def media(filename):
     return send_from_directory(common.MEDIA_DIR, filename, conditional=True)
+
+
+def resolve_host(cfg, cli_host):
+    """待ち受けアドレスの決定: コマンドライン引数 > config.json の "host" > 127.0.0.1"""
+    host = cli_host or (cfg.get("host") if isinstance(cfg, dict) else None) or "127.0.0.1"
+    return str(host).strip()
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=None)
     ap.add_argument("--no-browser", action="store_true")
-    ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--host", default=None,
+                    help="待ち受けアドレス（省略時は config.json の host、"
+                         "それも無ければ 127.0.0.1 = このPCのみ）")
     args = ap.parse_args()
     try:
         cfg = common.load_config()
     except SystemExit:
         cfg = {}
     port = args.port or (cfg.get("port") if isinstance(cfg, dict) else None) or 5089
-    url = f"http://127.0.0.1:{port}/"
+    host = resolve_host(cfg, args.host)
+    # ブラウザで開く/表示するURLは実際の待ち受け先に合わせる。
+    # （TailscaleのIPやマシン名にバインドすると 127.0.0.1 では応答しないため）
+    if host in ("127.0.0.1", "0.0.0.0"):
+        url = f"http://127.0.0.1:{port}/"
+    else:
+        url = f"http://{host}:{port}/"
     print(f"統合SNSアーカイブ ビューア: {url}")
+    if host not in ("127.0.0.1", "0.0.0.0"):
+        print(f"  待ち受け先 {host}:{port} — 他の端末からも同じURLで開けます。")
+    if host == "0.0.0.0":
+        print("  ！注意: 0.0.0.0 は同じネットワークの全端末に公開されます。")
+        print("  　このアーカイブにはDM等の非公開投稿も含まれるため、")
+        print("  　Tailscale等の閉じた網の中でだけ使うことを強くおすすめします。")
     print("終了するには Ctrl+C（またはこのウィンドウを閉じる）")
     if not args.no_browser:
         threading.Timer(1.2, lambda: webbrowser.open(url)).start()
-    app.run(host=args.host, port=port, threaded=True)
+    app.run(host=host, port=port, threaded=True)
 
 
 if __name__ == "__main__":

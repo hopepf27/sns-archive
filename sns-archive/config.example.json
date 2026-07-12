@@ -1,6 +1,8 @@
 {
   "timezone": "Asia/Tokyo",
   "port": 5089,
+  "host": "127.0.0.1",
+  "_ホストのメモ": "ビューアの待ち受け先。127.0.0.1=このPCのみ（既定・最も安全）。TailscaleのこのマシンのIP（100.x.x.x）を書くと、同じtailnetの端末（スマホ等）から閲覧できます。0.0.0.0は同一LANの全端末に公開されるため、DM等を含む本アプリでは非推奨です。",
   "download_like_media": true,
   "keep_extracted": false,
 
