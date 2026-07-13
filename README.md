@@ -27,20 +27,17 @@
 
 ## データベースビューアのイメージ
  
-#### メイン 
- <img width="30%" alt="aolip0j1zv png" src="https://github.com/user-attachments/assets/70bf8294-eaea-4002-a836-2e24e138af69" />  
+メイン  
+ <img width="30%" alt="aolip0j1zv png" src="https://github.com/user-attachments/assets/70bf8294-eaea-4002-a836-2e24e138af69" />  <br>
 
-#### 検索 
+検索  
+<img width="30%" alt="aoliow49zu png" src="https://github.com/user-attachments/assets/d3fb32fb-1eba-4ae5-a3cf-843927fea2ca" />  <br>
 
-<img width="30%" alt="aoliow49zu png" src="https://github.com/user-attachments/assets/d3fb32fb-1eba-4ae5-a3cf-843927fea2ca" />  
+前後の文脈を探れます  
+<img width="30%" alt="aoliotm2zt png" src="https://github.com/user-attachments/assets/a528f9d1-d32d-4512-a71a-88e8178dc24f" />  <br>
 
-#### 前後の文脈を探れます 
-
-<img width="30%" alt="aoliotm2zt png" src="https://github.com/user-attachments/assets/a528f9d1-d32d-4512-a71a-88e8178dc24f" />  
-
-#### 前後の文脈について、好きに設定できます 
-
-<img width="30%" alt="aolios5lzs png" src="https://github.com/user-attachments/assets/cfc70fd3-dd8f-4dbc-b1d3-88a8096e996e" />  
+前後の文脈について、好きに設定できます  
+<img width="30%" alt="aolios5lzs png" src="https://github.com/user-attachments/assets/cfc70fd3-dd8f-4dbc-b1d3-88a8096e996e" />  <br>
 
 
 
