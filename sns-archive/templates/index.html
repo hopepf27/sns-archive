@@ -782,8 +782,19 @@ async function doSearch(reset){
     const shown = $("#results").children.length;
     if(shown >= state.total || data.posts.length === 0 || state.order === "random")
       state.done = true;
-    $("#sentinel").textContent = state.done
-      ? (state.total ? "— 以上 —" : "") : "";
+    if(state.done && state.total && state.order === "random"){
+      // ランダム表示の終端: その場でもう一度引き直せる
+      $("#sentinel").innerHTML =
+        '— 以上 — <button class="btn" id="sentinel-reroll" ' +
+        'style="margin-left:10px;padding:4px 14px;font-size:13px">&#127922; もう一度</button>';
+      $("#sentinel-reroll").onclick = () => {
+        doSearch(true);
+        window.scrollTo({top: 0});
+      };
+    }else{
+      $("#sentinel").textContent = state.done
+        ? (state.total ? "— 以上 —" : "") : "";
+    }
   }catch(e){
     if(seq === state.seq) $("#sentinel").textContent = "読み込みエラー: " + e;
   }finally{
