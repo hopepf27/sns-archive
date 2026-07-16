@@ -75,6 +75,8 @@
   }
 }
 *{box-sizing:border-box}
+html{overflow-x:hidden;overflow-x:clip}
+body{overflow-x:clip}
 html,body{margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--font-body);
   font-size:16px;line-height:1.8;
@@ -93,7 +95,7 @@ button{touch-action:manipulation}
 .layout{display:grid;grid-template-columns:296px minmax(0,1fr);min-height:100vh}
 .sidebar{background:var(--bg2);padding:26px 20px 48px;
   position:sticky;top:0;height:100vh;overflow-y:auto;scrollbar-width:thin}
-.main{max-width:736px;width:100%;margin:0 auto;padding:0 24px 128px}
+.main{max-width:736px;width:100%;min-width:0;margin:0 auto;padding:0 24px 128px}
 
 /* ---------- サイドバー ---------- */
 .side-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
@@ -188,8 +190,8 @@ select.btn{padding:7px 10px}
 .tab.active{background:var(--panel);color:var(--text);box-shadow:var(--shadow);
   font-weight:700}
 .tab.active .n{color:var(--muted)}
-.searchbar{display:flex;gap:10px}
-.searchbar input{flex:1;background:var(--panel);border:1px solid transparent;
+.searchbar{display:flex;gap:10px;min-width:0}
+.searchbar input{flex:1;min-width:0;background:var(--panel);border:1px solid transparent;
   border-radius:999px;padding:12px 22px;font-size:16px;color:var(--text);
   box-shadow:var(--shadow);transition:box-shadow .15s, border-color .15s}
 .searchbar input::placeholder{color:var(--faint)}
@@ -198,6 +200,7 @@ select.btn{padding:7px 10px}
 .searchbar .btn{border-radius:999px;padding:8px 18px}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .chip{display:inline-flex;align-items:center;gap:6px;background:var(--accent-soft);
+  min-width:0;max-width:100%;overflow-wrap:anywhere;
   color:var(--link);border-radius:999px;padding:4px 8px 4px 14px;
   font-size:13px;font-weight:600}
 html[data-theme="dark"] .chip{color:var(--link-strong)}
@@ -207,7 +210,7 @@ html[data-theme="dark"] .chip{color:var(--link-strong)}
 .meta-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;
   color:var(--muted);font-size:13.5px;margin:8px 4px 22px;
   font-variant-numeric:tabular-nums}
-.meta-line .svc-n{font-family:var(--font-mono);font-size:12px}
+.meta-line .svc-n{font-family:var(--font-mono);font-size:12px;overflow-wrap:anywhere}
 .svc-n.tw{color:color-mix(in srgb,var(--tw) 62%,var(--text))}
 .svc-n.mk{color:color-mix(in srgb,var(--mk) 62%,var(--text))}
 .svc-n.bs{color:color-mix(in srgb,var(--bs) 62%,var(--text))}
@@ -277,7 +280,7 @@ html[data-theme="dark"] .chip{color:var(--link-strong)}
 .bm-btn.on{color:var(--link)}
 
 .bm-pop{background:var(--panel);border:0;border-radius:var(--r-m);
-  box-shadow:var(--shadow-lg);padding:14px 16px;margin:10px 0 4px;max-width:340px}
+  box-shadow:var(--shadow-lg);padding:14px 16px;margin:10px 0 4px;max-width:min(340px,100%)}
 html[data-theme="dark"] .bm-pop{border:1px solid var(--border)}
 .bm-pop h4{margin:0 0 8px;font-size:12.5px;color:var(--muted);font-weight:700;
   display:flex;justify-content:space-between;align-items:center}
@@ -422,7 +425,8 @@ html[data-theme="dark"] .menu-btn{color:#10131a}
 .top-btn.show{opacity:1;pointer-events:auto;transform:none}
 .top-btn:hover{color:var(--text)}
 @media (max-width:920px){
-  .layout{grid-template-columns:1fr}
+  .layout{grid-template-columns:minmax(0,1fr)}   /* 1frのみだと中身のmin-contentで
+                                                    ビューポート幅を超え、横スクロールが生まれる */
   .sidebar{position:fixed;left:0;top:0;bottom:0;width:min(312px,86vw);
     transform:translateX(-102%);transition:transform .22s;z-index:50;
     height:100vh;height:100dvh;
@@ -435,7 +439,16 @@ html[data-theme="dark"] .menu-btn{color:#10131a}
   .post{padding:14px 16px 12px 22px}
   .tabs{max-width:100%;overflow-x:auto;scrollbar-width:none}
   .tabs::-webkit-scrollbar{display:none}
-  .tab{padding:8px 16px;white-space:nowrap}
+  .tab{padding:8px 14px;white-space:nowrap}
+  .searchbar .btn{padding:8px 14px;flex:none}
+}
+@media (max-width:390px){
+  /* 幅360px級の端末: タブの件数表示を畳み、ボタンをさらに絞って1画面に収める
+     （件数は検索欄下の内訳にも表示されている） */
+  .tab .n{display:none}
+  .tab{padding:8px 12px}
+  .searchbar{gap:8px}
+  .searchbar .btn{padding:8px 12px}
 }
 body.no-scroll{overflow:hidden}
 
