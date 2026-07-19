@@ -263,6 +263,9 @@ def upsert_post(con, *, service, account, post_id, type, created_at, created_loc
                 is_reply=0, extra=None):
     """投稿を挿入（既存なら更新）。posts.id を返す。
 
+    内容が既存レコードと完全に同一の場合はUPDATE自体を発行しない
+    （全文検索索引の無駄な書き換えとWALへの書き込みを避けるため）。
+
     ただし今回のレコードが補完待ちスタブ（extra に export_stub）で、かつ既存レコードが
     スタブでない（＝すでに本文を持つ完全なデータ）の場合は、本文・作者を劣化上書き
     しない。これは同一アカウントを API とエクスポートの両方で取り込むといった構成で、
@@ -291,7 +294,15 @@ def upsert_post(con, *, service, account, post_id, type, created_at, created_loc
              author_name=excluded.author_name,
              url=excluded.url,
              is_reply=excluded.is_reply,
-             extra=excluded.extra""",
+             extra=excluded.extra
+           WHERE posts.created_at    IS NOT excluded.created_at
+              OR posts.created_local IS NOT excluded.created_local
+              OR posts.text          IS NOT excluded.text
+              OR posts.author_handle IS NOT excluded.author_handle
+              OR posts.author_name   IS NOT excluded.author_name
+              OR posts.url           IS NOT excluded.url
+              OR posts.is_reply      IS NOT excluded.is_reply
+              OR posts.extra         IS NOT excluded.extra""",
         (service, account, post_id, type, created_at, created_local,
          text or "", author_handle, author_name, url, int(bool(is_reply)), extra_json),
     )
@@ -312,6 +323,16 @@ def replace_media(con, pid, items):
     と解釈する。
     """
     if not items:
+        return
+    # 既存と完全に同一なら書き込まない（既知投稿の再取り込みで毎回
+    # DELETE+INSERT が走るのを避ける）
+    existing = [(r["kind"], r["local_path"], r["remote_url"], r["alt"])
+                for r in con.execute(
+                    "SELECT kind, local_path, remote_url, alt FROM media "
+                    "WHERE post_id=? ORDER BY sort", (pid,))]
+    incoming = [(m.get("kind"), m.get("local_path"), m.get("remote_url"), m.get("alt"))
+                for m in items]
+    if existing == incoming:
         return
     con.execute("DELETE FROM media WHERE post_id=?", (pid,))
     for i, m in enumerate(items):
